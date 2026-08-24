@@ -33,6 +33,9 @@ env/
 *.db
 *.pdf
 
+# Documentation
+docs/handoff-*.md
+
 # Personal data
 personality
 Gautam_Warvatkar_Resume.pdf
