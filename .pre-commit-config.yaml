@@ -1,0 +1,38 @@
+# Pre-commit hooks configuration
+# Runs fast local checks before each commit
+# Install with: pre-commit install
+
+repos:
+  # File endings check - prevent CRLF issues
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Python linting and formatting with Ruff (extremely fast)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.11
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Run the formatter
+      - id: ruff-format
+
+  # Type checking stub files validation
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-ast
+
+# Exclude files that shouldn't be checked
+exclude: ^\.venv/|^env/|^build/|^dist/|__pycache__/|.pytest_cache/
