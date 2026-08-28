@@ -7,7 +7,9 @@ authors = [
     { email = "Gautam.warvatkar@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "google-genai>=2.20.0",
+]
 
 [project.scripts]
 job-search-assistant = "job_search_assistant:main"

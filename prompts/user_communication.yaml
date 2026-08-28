@@ -1,0 +1,68 @@
+name: user_communication_style
+version: 8
+
+default: |
+  === USER WRITING STYLE ===
+  - **Greeting & Formality**: Casual and warm. Use "Hey [Name]," as the standard greeting (prefer "Hey" over "Hello" or "Hi").
+  - **Directness**: Direct and respectful. Skip empty preambles like "I hope this email finds you well" and get straight to the point.
+  - **Vibe**: Practical, professional, and authentic. Speak naturally like a modern technical peer, not a generic sales bot.
+  - **Social Distance**: For people you already know, use relaxed and warm-casual phrasing to help them open up easily. For cold contacts, keep it direct but polite.
+  - **Constraints**: Short and punchy. Keep messages under 100 words with clear, low-friction next steps.
+
+prompt: |
+  You are an expert AI behavioral and communication analyst. Your task is to analyze my (the user's) writing style based on your internal memory, past conversations, and interactions with me across our chat history.
+
+  ### OUTPUT OBJECTIVE:
+  Generate a clean, ready-to-use Markdown instruction block that describes my natural writing style. This block will be injected directly into prompt templates to help generate personalized outreach messages that sound exactly like me.
+
+  ### CRITICAL OBSERVATION RULES:
+  1. **Greeting Preference**: Check if I prefer "Hey" over "Hi" or "Hello" (e.g., if "Hello" feels too formal or yucky to me).
+  2. **Directness vs. Padding**: Look for how quickly I get to the point. Do I use introductory fluff, or do I dive straight into the technical problem or question?
+  3. **Vibe & Phrasing**: Identify if my vibe is conversational, fragment-heavy, technical, or casual (e.g., lowercase-heavy, omitting extra punctuation, using short iterative messages).
+  4. **Relationship Dynamics**: Note how I communicate with people I already know vs. strangers. (For people I know, my style should make them open up easily with natural, warm-casual phrasing).
+  5. **Constraints**: Define strict limits (e.g., "Keep it under 100 words", "Max 3 short paragraphs", "Frictionless Call to Action").
+
+  ### ⚠️ CRITICAL ANTI-LARPING RULE:
+  - If you do not have actual chat history or memory of me, do not make up fake habits.
+  - In that case, output "NO_HISTORY" so my system can fallback to defaults.
+  - Under no circumstances should you analyze this prompt itself.
+
+  ### REQUIRED OUTPUT FORMAT:
+  Your entire output must consist ONLY of a Markdown block starting with "=== USER WRITING STYLE ===". No markdown fences (```), no introductions, no explanations.
+
+  Example Output:
+  === USER WRITING STYLE ===
+  - **Greeting & Formality**: Casual and authentic. Strictly use "Hey [Name]," as the greeting. Avoid formal openings.
+  - **Directness**: Highly direct. Skip all empty conversational padding and state the reason for reaching out in the first or second sentence.
+  - **Vibe**: Practical, technical, and fragment-heavy. Sound like a busy developer writing a brief Slack message.
+  - **Social Distance**: For known contacts, write with high warmth and relaxed casualness to make them open up easily. For cold targets, keep it professional but direct.
+  - **Constraints**: Under 100 words. Low-friction, single-sentence ask at the end.
+
+questions:
+  - id: greeting
+    question: "How do you prefer to greet people in professional-casual messages?"
+    options:
+      - "Hey [Name],"
+      - "Hi [Name],"
+      - "Go straight to the point (no greeting)"
+
+  - id: directness
+    question: "When sending a message, how quickly do you like to get to the point?"
+    options:
+      - "Immediately (no preambles, highly direct)"
+      - "Balanced (a short pleasantry, then the point)"
+      - "Gentle (warm opening first, then introduce the topic)"
+
+  - id: vibe
+    question: "What vibe best describes your natural professional writing style?"
+    options:
+      - "Casual, conversational, and simple"
+      - "Technical, direct, and outcome-focused"
+      - "Polished and formal"
+
+  - id: length
+    question: "What is your target word limit for cold outreach?"
+    options:
+      - "Under 80 words (extremely short)"
+      - "100-120 words (concise with brief context)"
+      - "150+ words (detailed with examples)"

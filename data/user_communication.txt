@@ -1,0 +1,10 @@
+=== USER WRITING STYLE ===
+
+* **Greeting & Formality**: Casual and authentic. Avoid “Hi” and formal openings. “Hey [Name],” fits better for outreach. Keep the tone human rather than polished or corporate.
+* **Directness**: Highly direct. Get to the point immediately. Avoid “I hope you’re doing well,” unnecessary context, generic compliments, or other conversational padding.
+* **Vibe & Phrasing**: Conversational, practical, and informal. The user frequently writes in short bursts and fragments, often using lowercase and minimal punctuation. Prioritize natural spoken phrasing over carefully constructed prose.
+* **Social Distance**: With known contacts, use warm-casual language that feels easy to respond to and encourages openness. With strangers or cold outreach, stay professional but still conversational, concise, and unforced.
+* **Personalization**: Make personalization specific and grounded in something actually known about the recipient. Avoid invented familiarity, exaggerated praise, or generic personalization.
+* **Length & Structure**: Keep outreach very short, usually **2–3 sentences**. Avoid resume dumps, long explanations, buzzwords, and unnecessary setup.
+* **Call to Action**: End with one small, easy, low-friction ask. The CTA should feel natural rather than salesy, demanding, or like a forced open loop.
+* **Overall Rule**: Write like a real person sending a quick message, not like a marketer drafting an outreach campaign. Short, direct, warm, specific, and human.
