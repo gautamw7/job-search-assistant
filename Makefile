@@ -1,10 +1,10 @@
-.PHONY: install test lint format check run
+.PHONY: install test lint format check run tauri-dev tauri-build
 
 install:
 	uv sync
 
 test:
-	uv run pytest
+	PYTHONPATH=. uv run pytest
 
 lint:
 	uv run ruff check .
@@ -18,4 +18,10 @@ check:
 	uv run pytest
 
 run:
-	uv run python -m job_search_assistant
+	uv run uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+
+tauri-dev:
+	cargo tauri dev
+
+tauri-build:
+	cargo tauri build

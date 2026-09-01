@@ -1,0 +1,41 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "provider": {
+    "gemini-account-1": {
+      "npm": "@ai-sdk/google",
+      "name": "Gemini Account 1",
+      "options": {
+        "apiKey": "{env:GEMINI_API_KEY}"
+      },
+      "models": {
+        "gemini-2.5-flash": {},
+        "gemini-2.5-flash-lite": {},
+        "gemini-3.1-flash-lite": {},
+        "gemini-3.1-pro-preview": {},
+        "gemini-3.5-flash": {},
+        "gemini-3.5-flash-lite": {},
+        "gemini-3.6-flash": {},
+        "gemini-3.7-flash": {}
+      }
+    },
+
+    "gemini-account-3": {
+      "npm": "@ai-sdk/google",
+      "name": "Gemini Account 3",
+      "options": {
+        "apiKey": "{env:GEMINI_API_KEY3}"
+      },
+      "models": {
+        "gemini-2.5-flash": {},
+        "gemini-2.5-flash-lite": {},
+        "gemini-3.1-flash-lite": {},
+        "gemini-3.1-pro-preview": {},
+        "gemini-3.5-flash": {},
+        "gemini-3.5-flash-lite": {},
+        "gemini-3.6-flash": {},
+        "gemini-3.7-flash": {}
+      }
+    }
+  }
+}

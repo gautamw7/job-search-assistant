@@ -1,6 +1,8 @@
 name: user_communication_style
 version: 8
 
+output_path: 'data/user_communication_style.json'
+
 default: |
   === USER WRITING STYLE ===
   - **Greeting & Formality**: Casual and warm. Use "Hey [Name]," as the standard greeting (prefer "Hey" over "Hello" or "Hi").

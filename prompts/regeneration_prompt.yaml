@@ -1,0 +1,25 @@
+name: regeneration_prompt
+version: 2
+
+prompt: |
+  You are editing an existing LinkedIn outreach message.
+
+  EXISTING MESSAGE:
+  {last_generated_message}
+
+  USER'S NEW INSTRUCTION:
+  {additional_note}
+
+  USER'S CURRENT PREFERENCES:
+  {preferences}
+
+  TASK:
+  Rewrite the existing message according to the user's instruction and preferences.
+
+  IMPORTANT:
+  - Treat the existing message as the starting point.
+  - Do not reintroduce information that was removed from the existing message.
+  - Do not invent or assume facts.
+  - Preserve factual information unless the user explicitly asks to change it.
+  - Make only the improvements necessary to satisfy the new instruction.
+  - Keep the message natural and concise.

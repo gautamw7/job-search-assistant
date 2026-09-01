@@ -1,9 +1,13 @@
 name: outreach_generation
 version: 2
 
+output_path: "data/generated_messages.json"
+
 purpose: |
   Generate a personalized outreach message using the provided user,
   recipient, context, and preferences.
+
+default_user_note: "Reaching out to stay connected / explore potential opportunities."
 
 system_prompt: |
   You are an assistant helping the user write a personalized outreach message.
@@ -50,7 +54,7 @@ user_prompt_template: |
   {user_communication_style}
 
   === MESSAGE PERSONALIZATION ===
-  {message_personalization}
+  {user_preferences}
 
   === RECIPIENT ENRICHED DATA ===
   {recipient_enrich_data}

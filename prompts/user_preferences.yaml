@@ -1,6 +1,8 @@
 name: user_preferences
 version: 1
 
+output: "data/preferences.json"
+
 default: |
   Write messages in a natural, concise, and professional style.
   Keep the tone friendly and avoid unnecessary formality.
