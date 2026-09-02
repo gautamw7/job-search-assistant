@@ -1,0 +1,318 @@
+INFO:     Started server process [72072]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:43320 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43320 - "GET /resume/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43334 - "GET /user-communication/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46040 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46042 - "GET /messages/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46040 - "GET /resume/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46088 - "GET /user-communication/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46072 - "GET /config/gemini HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46058 - "GET /config/brightdata HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56764 - "POST /config/brightdata/test HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56772 - "POST /config/gemini/test HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45090 - "OPTIONS /config/gemini HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45098 - "POST /config/gemini HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:45106 - "POST /config/gemini HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45116 - "POST /config/gemini/test HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54936 - "POST /config/gemini/test HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56778 - "OPTIONS /messages/regenerate HTTP/1.1" 200 OK
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+Regenerating message for https://www.linkedin.com/in/ma-zeller/:
+You are editing an existing LinkedIn outreach message.
+
+USER_RESUME:
+� Gautam Warvatkar
+
+� gautam.warvatkar@gmail.com
+
+# **Gautam Warvatkar**
+
+� +91 9987171860
+
+� Gautamw7
+
+## **Technical Skills**
+
+## **Languages:** Python, SQL
+
+**Machine Learning:** XGBoost, Scikit-learn, TensorFlow/Keras, CNNs, feature engineering, predictive modeling **AI / NLP:** RAG, Sentence Transformers, Gemini, embeddings, LLM re-ranking **Data Engineering:** Pandas, NumPy, ETL pipelines, FAISS, Qdrant, MongoDB **AWS:** S3, SageMaker Pipelines, Redshift, AWS Glue, boto3, Lambda, KMS **Tools:** Git, Jira, Confluence, Power Automate, Smartsheet
+
+## **Experience**
+
+**Data Scientist / Engineer Intern** Feb 2026 – Aug 2026 _Digital Productivity & Innovation, Syngenta Pune, India_
+
+- **Supported transfer decisions across 11 distribution centers and runs covering up to $75M/day in product value** by engineering an explainable multi-gate Go/Caution/Stop decision framework using sales orders, inventory, historical consumption, and demand signals, targeting an official $6M/year SOOR reduction opportunity.
+
+- **Exposed 85 transfer-decision flips, including 65 Go/Caution-to-Stop changes** , by auditing 373 transfers across three daily snapshots and comparing sales-order-led versus forecast-led demand, prompting stakeholder data-quality review.
+
+- **Automated cross-facility transfer reporting** by building an end-to-end Python/Pandas/boto3 ETL pipeline on AWS S3 that consolidated transfer-order telemetry across plants and distribution centers.
+
+- **Restored downstream analytics** by diagnosing and resolving a production-blocking AWS KMS decryption failure affecting Glue-to-Redshift data flow in SageMaker forecasting workflows.
+
+- **Software Engineer Intern** Aug 2025 – Jan 2026 _Intranet, Syngenta Pune, India_
+
+- **Identified approximately $33K in annualized software savings** by auditing 5,998 Azure AD and Smartsheet accounts and isolating 200 inactive, duplicate, or underutilized enterprise licenses.
+
+- **Eliminated approximately 20 hours/month of manual effort** by automating data ingestion and licensegovernance reporting workflows with Python and Power Automate.
+
+- • **Improved access-management data integrity** by detecting and removing 44,000 duplicate SailPoint user records through data-cleaning and deduplication logic.
+
+- **AI Software Development Intern** Jun 2024 – Dec 2024 _UDNAV Software Services Pvt. Ltd. India_
+
+- **Achieved a 4.3/5 user satisfaction score across 4,000+ courses** by building an end-to-end RAG recommendation system combining Gemini resume parsing, Sentence Transformers, vector retrieval, and LLM re-ranking.
+
+- • **Improved vector-search persistence and scalability** by migrating backend storage from in-memory FAISS indexes to Qdrant for production-oriented integration.
+
+## **Projects**
+
+**Amazon Price Prediction – Amazon ML Challenge** _XGBoost, NLP_
+
+- **Ranked 750th among 6,000+ participants (top 12.5%)** with SMAPE 56.45% using XGBoost regression on approximately 75,000 rows, combining TF-IDF, SVD, categorical encoding, and feature engineering.
+
+## **Education**
+
+**Bachelor of Technology in Artificial Intelligence and Data Science Engineering** Jun 2022 – Jun 2026 _Vishwakarma Institute of Technology Pune, India_ **CGPA: 9.18 / 10**
+
+## **Certification**
+
+**IBM Data Engineering Professional** IBM Credential ID: A6WGR9WFSA0R
+
+1
+
+
+
+USER_COMMUNICATION_STYLE:
+=== USER WRITING STYLE (Generated from Q&A) ===
+- **greeting**: Go straight to the point (no greeting)
+- **directness**: Immediately (no preambles, highly direct)
+- **vibe**: Casual, conversational, and simple
+- **length**: Under 80 words (extremely short)
+
+EXISTING MESSAGE:
+I saw you're looking for Data Scientists at AI.Associates. I’m a Data Scientist finishing up my internship at Syngenta, where I’ve been building AWS ETL pipelines and ML decision frameworks, alongside previous RAG/LLM work at UDNAV. I’d love to see if my ML and data engineering background fits your team. Are you open to a quick chat?
+
+USER'S NEW INSTRUCTION:
+write a follow up message for this message
+
+USER'S CURRENT PREFERENCES:
+- length: short
+- style: concise
+
+TASK:
+Rewrite the existing message according to the user's instruction and preferences.
+
+IMPORTANT:
+- Treat the existing message as the starting point.
+- Do not reintroduce information that was removed from the existing message.
+- Do not invent or assume facts.
+- Preserve factual information unless the user explicitly asks to change it.
+- Make only the improvements necessary to satisfy the new instruction.
+- Keep the message natural and concise.
+
+Regenerating message for https://www.linkedin.com/in/ma-zeller/:
+You are editing an existing LinkedIn outreach message.
+
+USER_RESUME:
+� Gautam Warvatkar
+
+� gautam.warvatkar@gmail.com
+
+# **Gautam Warvatkar**
+
+� +91 9987171860
+
+� Gautamw7
+
+## **Technical Skills**
+
+## **Languages:** Python, SQL
+
+**Machine Learning:** XGBoost, Scikit-learn, TensorFlow/Keras, CNNs, feature engineering, predictive modeling **AI / NLP:** RAG, Sentence Transformers, Gemini, embeddings, LLM re-ranking **Data Engineering:** Pandas, NumPy, ETL pipelines, FAISS, Qdrant, MongoDB **AWS:** S3, SageMaker Pipelines, Redshift, AWS Glue, boto3, Lambda, KMS **Tools:** Git, Jira, Confluence, Power Automate, Smartsheet
+
+## **Experience**
+
+**Data Scientist / Engineer Intern** Feb 2026 – Aug 2026 _Digital Productivity & Innovation, Syngenta Pune, India_
+
+- **Supported transfer decisions across 11 distribution centers and runs covering up to $75M/day in product value** by engineering an explainable multi-gate Go/Caution/Stop decision framework using sales orders, inventory, historical consumption, and demand signals, targeting an official $6M/year SOOR reduction opportunity.
+
+- **Exposed 85 transfer-decision flips, including 65 Go/Caution-to-Stop changes** , by auditing 373 transfers across three daily snapshots and comparing sales-order-led versus forecast-led demand, prompting stakeholder data-quality review.
+
+- **Automated cross-facility transfer reporting** by building an end-to-end Python/Pandas/boto3 ETL pipeline on AWS S3 that consolidated transfer-order telemetry across plants and distribution centers.
+
+- **Restored downstream analytics** by diagnosing and resolving a production-blocking AWS KMS decryption failure affecting Glue-to-Redshift data flow in SageMaker forecasting workflows.
+
+- **Software Engineer Intern** Aug 2025 – Jan 2026 _Intranet, Syngenta Pune, India_
+
+- **Identified approximately $33K in annualized software savings** by auditing 5,998 Azure AD and Smartsheet accounts and isolating 200 inactive, duplicate, or underutilized enterprise licenses.
+
+- **Eliminated approximately 20 hours/month of manual effort** by automating data ingestion and licensegovernance reporting workflows with Python and Power Automate.
+
+- • **Improved access-management data integrity** by detecting and removing 44,000 duplicate SailPoint user records through data-cleaning and deduplication logic.
+
+- **AI Software Development Intern** Jun 2024 – Dec 2024 _UDNAV Software Services Pvt. Ltd. India_
+
+- **Achieved a 4.3/5 user satisfaction score across 4,000+ courses** by building an end-to-end RAG recommendation system combining Gemini resume parsing, Sentence Transformers, vector retrieval, and LLM re-ranking.
+
+- • **Improved vector-search persistence and scalability** by migrating backend storage from in-memory FAISS indexes to Qdrant for production-oriented integration.
+
+## **Projects**
+
+**Amazon Price Prediction – Amazon ML Challenge** _XGBoost, NLP_
+
+- **Ranked 750th among 6,000+ participants (top 12.5%)** with SMAPE 56.45% using XGBoost regression on approximately 75,000 rows, combining TF-IDF, SVD, categorical encoding, and feature engineering.
+
+## **Education**
+
+**Bachelor of Technology in Artificial Intelligence and Data Science Engineering** Jun 2022 – Jun 2026 _Vishwakarma Institute of Technology Pune, India_ **CGPA: 9.18 / 10**
+
+## **Certification**
+
+**IBM Data Engineering Professional** IBM Credential ID: A6WGR9WFSA0R
+
+1
+
+
+
+USER_COMMUNICATION_STYLE:
+=== USER WRITING STYLE (Generated from Q&A) ===
+- **greeting**: Go straight to the point (no greeting)
+- **directness**: Immediately (no preambles, highly direct)
+- **vibe**: Casual, conversational, and simple
+- **length**: Under 80 words (extremely short)
+
+EXISTING MESSAGE:
+I saw you're looking for Data Scientists at AI.Associates. I’m a Data Scientist finishing up my internship at Syngenta, where I’ve been building AWS ETL pipelines and ML decision frameworks, alongside previous RAG/LLM work at UDNAV. I’d love to see if my ML and data engineering background fits your team. Are you open to a quick chat?
+
+USER'S NEW INSTRUCTION:
+write a follow up message for this message
+
+USER'S CURRENT PREFERENCES:
+- length: short
+- style: concise
+
+TASK:
+Rewrite the existing message according to the user's instruction and preferences.
+
+IMPORTANT:
+- Treat the existing message as the starting point.
+- Do not reintroduce information that was removed from the existing message.
+- Do not invent or assume facts.
+- Preserve factual information unless the user explicitly asks to change it.
+- Make only the improvements necessary to satisfy the new instruction.
+- Keep the message natural and concise.
+
+Generated messages saved to /home/gautamw_7/Desktop/Projects/job-search-assistant/data/generated_messages.json
+INFO:     127.0.0.1:56794 - "POST /messages/regenerate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56794 - "GET /messages/ HTTP/1.1" 200 OK
+Generated messages saved to /home/gautamw_7/Desktop/Projects/job-search-assistant/data/generated_messages.json
+INFO:     127.0.0.1:56798 - "POST /messages/regenerate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56798 - "GET /messages/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43852 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43854 - "GET /messages/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43854 - "GET /resume/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43884 - "GET /user-communication/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43852 - "GET /config/brightdata HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43870 - "GET /config/gemini HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47350 - "OPTIONS /messages/regenerate HTTP/1.1" 200 OK
+Regenerating message for https://www.linkedin.com/in/ma-zeller/:
+You are editing an existing LinkedIn outreach message.
+
+USER_RESUME:
+� Gautam Warvatkar
+
+� gautam.warvatkar@gmail.com
+
+# **Gautam Warvatkar**
+
+� +91 9987171860
+
+� Gautamw7
+
+## **Technical Skills**
+
+## **Languages:** Python, SQL
+
+**Machine Learning:** XGBoost, Scikit-learn, TensorFlow/Keras, CNNs, feature engineering, predictive modeling **AI / NLP:** RAG, Sentence Transformers, Gemini, embeddings, LLM re-ranking **Data Engineering:** Pandas, NumPy, ETL pipelines, FAISS, Qdrant, MongoDB **AWS:** S3, SageMaker Pipelines, Redshift, AWS Glue, boto3, Lambda, KMS **Tools:** Git, Jira, Confluence, Power Automate, Smartsheet
+
+## **Experience**
+
+**Data Scientist / Engineer Intern** Feb 2026 – Aug 2026 _Digital Productivity & Innovation, Syngenta Pune, India_
+
+- **Supported transfer decisions across 11 distribution centers and runs covering up to $75M/day in product value** by engineering an explainable multi-gate Go/Caution/Stop decision framework using sales orders, inventory, historical consumption, and demand signals, targeting an official $6M/year SOOR reduction opportunity.
+
+- **Exposed 85 transfer-decision flips, including 65 Go/Caution-to-Stop changes** , by auditing 373 transfers across three daily snapshots and comparing sales-order-led versus forecast-led demand, prompting stakeholder data-quality review.
+
+- **Automated cross-facility transfer reporting** by building an end-to-end Python/Pandas/boto3 ETL pipeline on AWS S3 that consolidated transfer-order telemetry across plants and distribution centers.
+
+- **Restored downstream analytics** by diagnosing and resolving a production-blocking AWS KMS decryption failure affecting Glue-to-Redshift data flow in SageMaker forecasting workflows.
+
+- **Software Engineer Intern** Aug 2025 – Jan 2026 _Intranet, Syngenta Pune, India_
+
+- **Identified approximately $33K in annualized software savings** by auditing 5,998 Azure AD and Smartsheet accounts and isolating 200 inactive, duplicate, or underutilized enterprise licenses.
+
+- **Eliminated approximately 20 hours/month of manual effort** by automating data ingestion and licensegovernance reporting workflows with Python and Power Automate.
+
+- • **Improved access-management data integrity** by detecting and removing 44,000 duplicate SailPoint user records through data-cleaning and deduplication logic.
+
+- **AI Software Development Intern** Jun 2024 – Dec 2024 _UDNAV Software Services Pvt. Ltd. India_
+
+- **Achieved a 4.3/5 user satisfaction score across 4,000+ courses** by building an end-to-end RAG recommendation system combining Gemini resume parsing, Sentence Transformers, vector retrieval, and LLM re-ranking.
+
+- • **Improved vector-search persistence and scalability** by migrating backend storage from in-memory FAISS indexes to Qdrant for production-oriented integration.
+
+## **Projects**
+
+**Amazon Price Prediction – Amazon ML Challenge** _XGBoost, NLP_
+
+- **Ranked 750th among 6,000+ participants (top 12.5%)** with SMAPE 56.45% using XGBoost regression on approximately 75,000 rows, combining TF-IDF, SVD, categorical encoding, and feature engineering.
+
+## **Education**
+
+**Bachelor of Technology in Artificial Intelligence and Data Science Engineering** Jun 2022 – Jun 2026 _Vishwakarma Institute of Technology Pune, India_ **CGPA: 9.18 / 10**
+
+## **Certification**
+
+**IBM Data Engineering Professional** IBM Credential ID: A6WGR9WFSA0R
+
+1
+
+
+
+USER_COMMUNICATION_STYLE:
+=== USER WRITING STYLE (Generated from Q&A) ===
+- **greeting**: Go straight to the point (no greeting)
+- **directness**: Immediately (no preambles, highly direct)
+- **vibe**: Casual, conversational, and simple
+- **length**: Under 80 words (extremely short)
+
+EXISTING MESSAGE:
+Following up on my last message to see if you're still looking for Data Scientists at AI.Associates. Let me know if you'd be open to a quick chat.
+
+USER'S NEW INSTRUCTION:
+and hello, thanks
+
+USER'S CURRENT PREFERENCES:
+- length: short
+- style: concise
+
+TASK:
+Rewrite the existing message according to the user's instruction and preferences.
+
+IMPORTANT:
+- Treat the existing message as the starting point.
+- Do not reintroduce information that was removed from the existing message.
+- Do not invent or assume facts.
+- Preserve factual information unless the user explicitly asks to change it.
+- Make only the improvements necessary to satisfy the new instruction.
+- Keep the message natural and concise.
+
+Generated messages saved to /home/gautamw_7/Desktop/Projects/job-search-assistant/data/generated_messages.json
+INFO:     127.0.0.1:47356 - "POST /messages/regenerate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47356 - "GET /messages/ HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [72072]

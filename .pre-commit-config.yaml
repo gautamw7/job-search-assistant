@@ -18,9 +18,9 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
-  # Python linting and formatting with Ruff (extremely fast)
+  # Python linting and formatting with Ruff (extremely fast) — rev matches backend/pyproject.toml ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.11
+    rev: v0.16.4
     hooks:
       # Run the linter
       - id: ruff
