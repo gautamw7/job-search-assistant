@@ -3,6 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, HTTPException
+
 from job_search_assistant.api.schemas import MessageResponse, Target
 from job_search_assistant.services.generator import (
     generate_outreach_message,

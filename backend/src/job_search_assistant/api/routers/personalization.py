@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+
 from job_search_assistant.services.helper import load_config
 from job_search_assistant.services.logger import get_logger
 from job_search_assistant.services.paths import PROMPTS_DIR

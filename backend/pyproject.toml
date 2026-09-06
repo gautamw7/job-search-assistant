@@ -34,3 +34,12 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
+
+[tool.ruff.lint]
+ignore = [
+    "ASYNC230",  # blocking calls in async functions (acceptable for file I/O in this project)
+    "BLE001",    # blind exception catches (intentional fallback behavior)
+    "B008",      # function calls in argument defaults (FastAPI File() pattern)
+    "DTZ005",    # datetime.now() without tz (local time is intentional)
+    "TRY401",    # redundant exception object in logging (intentional for context)
+]

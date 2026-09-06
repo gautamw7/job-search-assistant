@@ -1,9 +1,10 @@
 import json
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
 from job_search_assistant.services.logger import get_logger
 from job_search_assistant.services.paths import DATA_DIR
-from pydantic import BaseModel
 
 logger = get_logger(__name__)
 

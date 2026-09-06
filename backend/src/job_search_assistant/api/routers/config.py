@@ -1,5 +1,6 @@
 import requests
 from fastapi import APIRouter, HTTPException
+
 from job_search_assistant.api.schemas import APIKeyRequest
 from job_search_assistant.services.logger import get_logger
 from job_search_assistant.services.secrets import (

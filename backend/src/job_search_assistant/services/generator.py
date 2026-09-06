@@ -4,6 +4,7 @@ from pathlib import Path
 
 from google import genai
 from google.genai import types
+
 from job_search_assistant.services.enrich import get_enrich_data
 from job_search_assistant.services.helper import load_config
 from job_search_assistant.services.logger import get_logger
@@ -91,10 +92,8 @@ def load_generated_messages(
     except FileNotFoundError:
         logger.info("generated messages file not found path=%s", output_path)
         return {}
-    except Exception as e:
-        logger.exception(
-            "failed to load generated messages path=%s err=%s", output_path, e
-        )
+    except Exception:
+        logger.exception("failed to load generated messages path=%s", output_path)
         return {}
 
 
@@ -177,8 +176,12 @@ def regenerate_responses(
     # ---------------------------------------------------------
     # 4. Build regeneration prompt
     # ---------------------------------------------------------
+    from job_search_assistant.services.enrich import get_enrich_data
+
+    target_content = get_enrich_data(linkedin_url)
 
     filled_prompt = regeneration_prompt.format(
+        target_content=target_content,
         user_resume=user_resume,
         user_communication_style=user_communication_style,
         last_generated_message=last_generated_message,
@@ -235,7 +238,7 @@ def regenerate_responses(
                 continue  # Try next model
     except Exception as e:
         logger.exception(
-            "gemini model failure during regeneration url=%s err=%s", linkedin_url, e
+            "gemini model failure during regeneration url=%s", linkedin_url
         )
         raise RuntimeError(
             f"Gemini API model failure during regeneration: {e!s}"
@@ -424,9 +427,7 @@ def generate_outreach_message(
                 )
                 continue  # Try next model
     except Exception as e:
-        logger.exception(
-            "gemini model failure during generation url=%s err=%s", linkedin_url, e
-        )
+        logger.exception("gemini model failure during generation url=%s", linkedin_url)
         raise RuntimeError(f"Gemini API model failure during generation: {e!s}") from e
 
     if not response or not response.text:

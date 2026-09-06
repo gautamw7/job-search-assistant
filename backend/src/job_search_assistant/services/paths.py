@@ -35,6 +35,7 @@ PROMPTS_DIR = PROJECT_ROOT / "prompts"
 CONFIG_DIR = PROJECT_ROOT / "config"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
+ENRICH_DATA = DATA_DIR / "enrich_data.json"
 SECRETS_FILE = DATA_DIR / "secrets.json"
 RESUME_PDF = DATA_DIR / "resume.pdf"
 RESUME_MD = DATA_DIR / "resume.md"

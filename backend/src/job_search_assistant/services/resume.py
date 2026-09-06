@@ -1,8 +1,9 @@
-import os
+import asyncio
 import re
 from pathlib import Path
 
 import pymupdf4llm
+
 from job_search_assistant.services.logger import get_logger
 from job_search_assistant.services.paths import RESUME_MD
 
@@ -10,17 +11,12 @@ logger = get_logger(__name__)
 
 
 def validate_markdown(markdown_text: str) -> None:
-    """
-    Validate the extracted Markdown text.
-    Raises ValueError if the Markdown is invalid or doesn't look like a resume.
-    """
     text = markdown_text.strip()
     if not text or len(text) < 100:
         raise ValueError(
             "Extracted text is too short to be a valid resume. Please upload a full resume PDF."
         )
 
-    # Check for contact info (email or phone) or common resume sections
     email_pattern = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
     phone_pattern = re.compile(r"(\+\d{1,3}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
     has_contact = email_pattern.search(text) or phone_pattern.search(text)
@@ -42,9 +38,8 @@ def validate_markdown(markdown_text: str) -> None:
         )
 
 
-def parse_resume_to_markdown(pdf_path: str):
-    """Extracts clean Markdown text from a resume PDF using pymupdf4llm."""
-    if not os.path.exists(pdf_path):
+async def parse_resume_to_markdown(pdf_path: str):
+    if not Path(pdf_path).exists():
         logger.error("pdf not found path=%s", pdf_path)
         raise FileNotFoundError(f"PDF file not found at {pdf_path}")
 
@@ -52,26 +47,20 @@ def parse_resume_to_markdown(pdf_path: str):
         logger.warning("markdown file exists, will be overwritten path=%s", RESUME_MD)
 
     logger.info("extracting markdown from pdf path=%s", pdf_path)
-    markdown_text = pymupdf4llm.to_markdown(pdf_path)
+    markdown_text = await asyncio.to_thread(pymupdf4llm.to_markdown, pdf_path)
     validate_markdown(markdown_text)
 
     logger.info(
         "successfully extracted markdown from %s len=%s", pdf_path, len(markdown_text)
     )
-    save_markdown(markdown_text)
+    await save_markdown(markdown_text)
 
 
 def check_resume_markdown() -> bool:
-    """
-    Check markdown file exists
-    """
     return RESUME_MD.exists()
 
 
-def save_markdown(markdown_text: str, output_path: Path = RESUME_MD) -> None:
-    """
-    Save the extracted Markdown text to a file.
-    """
+async def save_markdown(markdown_text: str, output_path: Path = RESUME_MD) -> None:
     output_path = Path(output_path)
     if not output_path.parent.exists():
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,17 +68,11 @@ def save_markdown(markdown_text: str, output_path: Path = RESUME_MD) -> None:
     if output_path.exists():
         logger.warning("overwriting existing file path=%s", output_path)
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(markdown_text)
-
+    await asyncio.to_thread(output_path.write_text, markdown_text, encoding="utf-8")
     logger.info("markdown resume saved path=%s len=%s", output_path, len(markdown_text))
 
 
 def get_resume_markdown() -> str:
-    """
-    Get the resume in Markdown format.
-    """
     if not RESUME_MD.exists():
         raise FileNotFoundError(f"Resume markdown not found at {RESUME_MD}")
-    with open(RESUME_MD, "r", encoding="utf-8") as f:
-        return f.read()
+    return RESUME_MD.read_text(encoding="utf-8")

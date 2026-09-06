@@ -1,6 +1,7 @@
 import os
 
 import yaml
+
 from job_search_assistant.services.logger import get_logger
 
 logger = get_logger(__name__)

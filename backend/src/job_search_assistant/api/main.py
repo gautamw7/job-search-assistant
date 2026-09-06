@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+
 from job_search_assistant.services.logger import get_logger, setup_logging
 
 setup_logging()

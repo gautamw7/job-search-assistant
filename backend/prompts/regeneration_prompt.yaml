@@ -4,6 +4,9 @@ version: 2
 prompt: |
   You are editing an existing LinkedIn outreach message.
 
+  TARGET_CONTENT:
+  {target_content}
+
   USER_RESUME:
   {user_resume}
 

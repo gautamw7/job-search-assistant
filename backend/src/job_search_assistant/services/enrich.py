@@ -1,11 +1,12 @@
 import json
-import os
 import re
 import time
 from pathlib import Path
 
 import requests
+
 from job_search_assistant.services.logger import get_logger
+from job_search_assistant.services.secrets import get_brightdata_key
 
 logger = get_logger(__name__)
 
@@ -85,16 +86,7 @@ def fetch_enrich_data(linkedin_urls: list) -> list:
         list: Raw JSON result list returned by BrightData API.
     """
     DATASET_ID = "gd_l1viktl72bvl7bjuj0"
-    API_KEY = os.getenv("BRIGHTDATA_API_KEY")
-    if not API_KEY:
-        try:
-            from job_search_assistant.services.secrets import get_brightdata_key
-
-            API_KEY = get_brightdata_key()
-            if API_KEY:
-                logger.info("brightdata key resolved via secure store")
-        except Exception:
-            pass
+    API_KEY = get_brightdata_key()
 
     headers = {
         "Authorization": f"Bearer {API_KEY}",
@@ -122,7 +114,7 @@ def fetch_enrich_data(linkedin_urls: list) -> list:
             trigger_response.status_code,
             trigger_response.text,
         )
-        raise RuntimeError(f"Bright Data trigger failed: {trigger_response.text}")
+        raise ValueError(f"Bright Data trigger failed: {trigger_response.text}")
 
     snapshot_id = trigger_response.json()["snapshot_id"]
     logger.info("brightdata snapshot_id=%s", snapshot_id)
@@ -146,7 +138,7 @@ def fetch_enrich_data(linkedin_urls: list) -> list:
                 snapshot_id,
                 progress_response.text,
             )
-            raise Exception(f"Collection failed: {progress_response.text}")
+            raise ValueError(f"Collection failed: {progress_response.text}")
 
         time.sleep(10)
 
@@ -295,10 +287,8 @@ def save_enrich_data(enrich_data: dict, output_path: str | None = None) -> None:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 existing = json.load(f)
-        except Exception as e:
-            logger.warning(
-                "failed to load existing enrich data path=%s err=%s", path, e
-            )
+        except (json.JSONDecodeError, OSError):
+            logger.warning("failed to load existing enrich data path=%s", path)
             existing = {}
 
     # Deep merge per URL: append lists instead of replacing content
@@ -422,40 +412,94 @@ def map_enrich_data_by_url(results: list) -> dict:
     }
 
 
-def get_enrich_data(linkedin_url: str) -> str:
+def cached_enrich_data(linkedin_url: str) -> dict:
+    """
+    Load enrichment data from cache if available.
+
+    Args:
+        linkedin_url (str): LinkedIn profile URL to check in cache.
+
+    Returns:
+        dict: Cached enrichment data if found, else empty dict.
+    """
+    from job_search_assistant.services.paths import ENRICH_DATA
+
+    path = ENRICH_DATA
+    if not path.exists():
+        return {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+            cached = existing.get(linkedin_url, {})
+            if isinstance(cached, dict) and (
+                cached.get("content") or cached.get("card_info")
+            ):
+                return cached
+            return {}
+    except json.JSONDecodeError as e:
+        logger.warning("failed to load cached enrich data path=%s err=%s", path, e)
+        return {}
+
+
+def get_enrich_data(linkedin_url: str, force_refresh: bool = False) -> str:
     """
     Fetch, process, and persist enrichment data for a single LinkedIn URL.
 
+    Checks local cache first unless force_refresh is True.
+
     Args:
         linkedin_url (str): A single LinkedIn profile URL string.
+        force_refresh (bool): If True, bypass cache and fetch fresh from API.
 
     Returns:
-        str: Markdown string of content for generation (only content as markdown).
-        Full dict is saved via url: dict pattern.
+        str: Markdown string of card_info and content for generation.
     """
-    logger.info("get_enrich_data start url=%s", linkedin_url)
-    results = fetch_enrich_data([linkedin_url])
-    if not results:
-        logger.warning("no enrichment data found url=%s", linkedin_url)
-        return ""
+    logger.info(
+        "get_enrich_data start url=%s force_refresh=%s", linkedin_url, force_refresh
+    )
+    cached = None if force_refresh else cached_enrich_data(linkedin_url)
+    if cached:
+        logger.info("cached enrich data found url=%s", linkedin_url)
+        processed = cached
+    else:
+        results = fetch_enrich_data([linkedin_url])
+        if not results:
+            logger.warning("no enrichment data found url=%s", linkedin_url)
+            return ""
 
-    # Process only [0] as requested, keep json pattern simple (no dumps/loads deep copy needed)
-    profile = results[0]
-    processed = process_enrich_data(profile)
+        profile = results[0]
+        processed = process_enrich_data(profile)
+        save_enrich_data({linkedin_url: processed})
 
-    # Create markdown only from content as requested
-    content_md = content_to_markdown(processed["content"])
+    content_md = content_to_markdown(processed.get("content", {}))
+    card_info_md = content_to_markdown(processed.get("card_info", {}))
 
-    # Save entire dict back for saving using same url: dict pattern
-    save_enrich_data({linkedin_url: processed})
+    content = f"# Card Info\n{card_info_md}\n\n# Content\n{content_md}".strip()
+
+    activity_hiring = (
+        processed.get("activity", {}).get("hiring", [])
+        if isinstance(processed.get("activity"), dict)
+        else []
+    )
+    activity_dropped = (
+        processed.get("activity", {}).get("dropped", [])
+        if isinstance(processed.get("activity"), dict)
+        else []
+    )
+    discovery_people = (
+        processed.get("discovery", {}).get("people_also_viewed", [])
+        if isinstance(processed.get("discovery"), dict)
+        else []
+    )
 
     logger.info(
         "get_enrich_data done url=%s content_md_len=%s hiring=%s dropped=%s people=%s",
         linkedin_url,
-        len(content_md),
-        len(processed["activity"]["hiring"]),
-        len(processed["activity"]["dropped"]),
-        len(processed["discovery"]["people_also_viewed"]),
+        len(content),
+        len(activity_hiring),
+        len(activity_dropped),
+        len(discovery_people),
     )
 
-    return content_md
+    return content

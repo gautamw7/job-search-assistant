@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
+
 from job_search_assistant.services.paths import find_project_root
 
 _PROJECT_ROOT = find_project_root(Path(__file__).resolve())

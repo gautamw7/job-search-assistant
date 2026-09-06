@@ -8,6 +8,7 @@ import json
 import os
 
 import keyring
+
 from job_search_assistant.services.logger import get_logger
 from job_search_assistant.services.paths import SECRETS_FILE
 
@@ -46,7 +47,7 @@ def _set_local_secret(service: str, api_key: str):
         # Harden file permission when possible
         try:
             SECRETS_FILE.chmod(0o600)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         logger.info("saved local secret service=%s path=%s", service, SECRETS_FILE)
     except Exception as e:

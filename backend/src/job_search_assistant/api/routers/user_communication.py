@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+
 from job_search_assistant.api.schemas import UserCommunication
 from job_search_assistant.services.logger import get_logger
 from job_search_assistant.services.paths import PROJECT_ROOT as ROOT_DIR

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useRef } from 'react';
+import axios, { AxiosError } from 'axios';
 import {
   FileText, MessageSquare, Send, History, Settings, Plus, Trash2,
-  Copy, Check, RefreshCw, AlertCircle, Sparkles, Upload, ArrowRight, ShieldCheck, UserCheck, Layers, ChevronDown, ChevronUp, Key, CheckCircle, Eye, EyeOff
+  Copy, Check, RefreshCw, AlertCircle, Sparkles, Upload, ArrowRight, ShieldCheck, UserCheck, Layers, ChevronDown, ChevronUp, Key, CheckCircle, Eye, EyeOff, Search, XCircle
 } from 'lucide-react';
 
 // API Client
@@ -103,6 +103,8 @@ export default function App() {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [enrichCache, setEnrichCache] = useState<{ [url: string]: any }>({});
   const [expandedCards, setExpandedCards] = useState<{ [url: string]: boolean }>({});
+  const [historySearch, setHistorySearch] = useState<string>('');
+  const generationCancelToken = useRef<AbortController | null>(null);
 
   // Check setup on mount
   useEffect(() => {
@@ -357,14 +359,7 @@ export default function App() {
     }
   }, [activeTab, needsOnboarding, fullPrompt]);
 
-  // Fetch enrich card info for history URLs
-  useEffect(() => {
-    const urls = Object.keys(historyData);
-    if (urls.length === 0) return;
-    urls.forEach(url => {
-      if (!enrichCache[url]) fetchEnrichForUrl(url);
-    });
-  }, [historyData]);
+  // Fetch enrich card info for history URLs — lazy, only when card expands
 
   // Add row in generator
   const addRow = () => {
@@ -384,6 +379,8 @@ export default function App() {
   const handleGenerateBatch = async () => {
     setIsGenerating(true);
     setBatchError(null);
+    const controller = new AbortController();
+    generationCancelToken.current = controller;
     try {
       const payload = rows.map(r => ({
         linkedin_url: r.linkedin_url.trim(),
@@ -394,18 +391,28 @@ export default function App() {
         }
       }));
 
-      const res = await api.post('/messages/batch', payload);
+      const res = await api.post('/messages/batch', payload, { signal: controller.signal });
       setGeneratedCards(res.data);
       setSelectedCardIndex(0);
       fetchHistory();
-      // Fetch enrich card info for each generated linkedin_url
       res.data.forEach((card: any) => {
         if (card.linkedin_url) fetchEnrichForUrl(card.linkedin_url);
       });
     } catch (err: any) {
-      setBatchError(err.response?.data?.detail || err.message || "Batch generation failed.");
+      if (axios.isCancel(err) || err.name === 'AbortError') {
+        setBatchError('Generation cancelled by user.');
+      } else {
+        setBatchError(err.response?.data?.detail || err.message || "Batch generation failed.");
+      }
     } finally {
+      generationCancelToken.current = null;
       setIsGenerating(false);
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (generationCancelToken.current) {
+      generationCancelToken.current.abort();
     }
   };
 
@@ -627,7 +634,7 @@ export default function App() {
         <div>
           <div className="flex items-center gap-3 px-3 py-4 mb-4 border-b border-slate-800/80">
             <div className="rounded-xl bg-indigo-600/10 p-2 text-indigo-400">
-              <Sparkles className="h-5 w-5" />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
             </div>
             <div>
               <h1 className="text-sm font-bold text-slate-100">Job Search Assistant</h1>
@@ -763,7 +770,14 @@ export default function App() {
                 </div>
               )}
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 gap-3">
+                <button
+                  onClick={handleStopGeneration}
+                  disabled={!isGenerating}
+                  className="flex items-center gap-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 px-5 py-3 text-xs font-semibold text-white shadow-lg transition-all disabled:opacity-30"
+                >
+                  <XCircle className="h-4 w-4" /> Stop Generation
+                </button>
                 <button
                   onClick={handleGenerateBatch}
                   disabled={isGenerating}
@@ -1019,13 +1033,41 @@ export default function App() {
               <p className="text-xs text-slate-400">Append-only history of all outreach messages generated across profiles.</p>
             </div>
 
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <input
+                type="text"
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                placeholder="Search by URL, name, or company..."
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none placeholder:text-slate-600"
+              />
+              {historySearch && (
+                <button
+                  onClick={() => setHistorySearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
             <div className="space-y-4">
               {Object.keys(historyData).length === 0 ? (
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-12 text-center text-slate-500">
                   No generation history found yet.
                 </div>
               ) : (
-                Object.entries(historyData).map(([url, data]: [string, any], idx) => {
+                  Object.entries(historyData)
+                    .filter(([url, data]: [string, any]) => {
+                      if (!historySearch.trim()) return true;
+                      const q = historySearch.toLowerCase();
+                      const cardInfo = (enrichCache[url]?.card as any) || {};
+                      const name = (cardInfo.name || '').toLowerCase();
+                      const company = (cardInfo.current_company_name || '').toLowerCase();
+                      return url.toLowerCase().includes(q) || name.includes(q) || company.includes(q);
+                    })
+                    .map(([url, data]: [string, any], idx) => {
                   const generations = data.generations || [];
                   const isRegenerating = isGenerating && selectedCardIndex === idx;
                   const enrich: any = enrichCache[url] || {};
@@ -1133,13 +1175,12 @@ export default function App() {
                               <p className="text-xs text-slate-200 whitespace-pre-wrap">{gen.generated_message}</p>
 
                               <div className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={historyTweaks[`${idx}-${gIdx}`] || ''}
-                                  onChange={(e) => setHistoryTweaks({ ...historyTweaks, [`${idx}-${gIdx}`]: e.target.value })}
-                                  placeholder="Tweak this message..."
-                                  className="flex-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
-                                />
+                                <button
+                                  onClick={() => copyToClipboard(gen.generated_message, `${url}-hist-${gIdx}`)}
+                                  className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all"
+                                >
+                                  {copiedUrl === `${url}-hist-${gIdx}` ? <><Check className="h-3 w-3 text-emerald-400" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                                </button>
                                 <button
                                   onClick={() => handleRegenerateFromHistory(url, gIdx)}
                                   disabled={isRegenActive || !historyTweaks[`${idx}-${gIdx}`]?.trim()}
