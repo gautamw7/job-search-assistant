@@ -1,0 +1,60 @@
+name: user_preferences
+version: 1
+
+output: "data/preferences.json"
+
+default: |
+  Write messages in a natural, concise, and professional style.
+  Keep the tone friendly and avoid unnecessary formality.
+
+description: |
+  Optional preferences that control how generated messages should be written.
+  These preferences override the user's inferred communication style when provided.
+
+questions:
+  - id: length
+    question: "How long do you usually want your generated messages?"
+    options:
+      - short
+      - medium
+      - detailed
+
+  - id: tone
+    question: "What tone do you prefer for generated messages?"
+    options:
+      - professional
+      - friendly
+      - casual
+      - confident
+      - neutral
+
+  - id: formality
+    question: "How formal should your generated messages be?"
+    options:
+      - very_casual
+      - casual
+      - balanced
+      - formal
+
+  - id: directness
+    question: "How direct should your messages be?"
+    options:
+      - very_direct
+      - direct
+      - balanced
+      - gentle
+
+  - id: style
+    question: "What writing style do you prefer?"
+    options:
+      - concise
+      - conversational
+      - polished
+      - natural
+      - persuasive
+
+rules:
+  max_preferences: 5
+  optional: true
+  override_communication_style: true
+  do_not_ask_unnecessarily: true

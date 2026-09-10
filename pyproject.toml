@@ -1,0 +1,50 @@
+[project]
+name = "job-search-assistant"
+version = "0.1.0"
+description = "Job Search Assistant - Personal Outreach Workspace"
+readme = "README.md"
+authors = [
+    { email = "Gautam.warvatkar@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "google-genai>=2.20.0",
+    "keyring>=25.7.0",
+    "notebook>=7.6.2",
+    "pymupdf4llm>=1.28.2",
+    "python-multipart>=0.0.32",
+    "pyyaml>=6.0",
+    "uvicorn>=0.52.4",
+]
+
+[project.scripts]
+job-search-assistant = "app.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.4",
+    "pre-commit>=4.0.1",
+    "pyinstaller>=6.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+ignore = [
+    "ASYNC230",
+    "BLE001",
+    "B008",
+    "DTZ005",
+    "TRY401",
+]

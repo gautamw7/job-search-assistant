@@ -1,8 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::process::{Child, Command};
+mod backend;
+mod paths;
+
+use std::process::Child;
 use std::sync::Mutex;
-use chrono::Datelike;
 use tauri::Manager;
 
 struct BackendProcess(Mutex<Option<Child>>);
@@ -12,55 +14,72 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(BackendProcess(Mutex::new(None)))
         .setup(|app| {
-            // Automatically spawn the FastAPI backend server on startup in development mode (non-blocking)
-            #[cfg(debug_assertions)]
-            {
-                let state = app.state::<BackendProcess>();
-                let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-                let python_path = manifest_dir.join("../backend/.venv/bin/python");
-                let project_root = manifest_dir.join("..");
-                let backend_root = project_root.join("backend");
+            let state = app.state::<BackendProcess>();
+            let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+            let project_root = paths::project_root(manifest_dir);
 
-                // Ensure backend/logs/YYYY/MM/DD directory exists and prepare uvicorn log redirection (append)
-                let now = chrono::Local::now();
-                let log_dir = backend_root
-                    .join("logs")
-                    .join(format!("{:04}", now.year()))
-                    .join(format!("{:02}", now.month()))
-                    .join(format!("{:02}", now.day()));
-                let _ = std::fs::create_dir_all(&log_dir);
-                let _ = std::fs::create_dir_all(backend_root.join("data"));
-                let log_file_path = log_dir.join("app.log");
+            // Data/log dir: debug -> repo_root/data & logs, release -> app_data_dir
+            let data_dir = paths::data_dir(&project_root, app.handle());
+            let log_base = paths::log_base(&project_root, app.handle());
+            let log_dir = paths::daily_log_dir(&log_base);
+            let _ = std::fs::create_dir_all(&log_dir);
+            let _ = std::fs::create_dir_all(&data_dir);
+            let log_file_path = log_dir.join("app.log");
 
+            let log_file_result = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(true)
+                .open(&log_file_path);
+
+            let (stdout_cfg, stderr_cfg) = match log_file_result {
+                Ok(file) => {
+                    let stdout_file = file.try_clone().map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null());
+                    let stderr_file = std::process::Stdio::from(file);
+                    (stdout_file, stderr_file)
+                }
+                Err(_) => (std::process::Stdio::null(), std::process::Stdio::null())
+            };
+
+            // Prefer bundled sidecar binary in release; fallback to python in dev or if binary missing/corrupt
+            let mut backend_started = false;
+            if let Some(bin) = backend::resolve_sidecar_binary(app.handle()) {
+                match backend::spawn_sidecar(&bin, &project_root, &data_dir, stdout_cfg, stderr_cfg) {
+                    Ok(child) => {
+                        *state.0.lock().unwrap() = Some(child);
+                        println!("🚀 Sidecar binary spawned: {:?}", bin);
+                        backend_started = true;
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️ Failed to spawn sidecar {:?}: {} — falling back to Python", bin, e);
+                    }
+                }
+            }
+            if !backend_started {
+                // Reopen log file for Python fallback if sidecar consumed the stdio handles
                 let log_file_result = std::fs::OpenOptions::new()
                     .create(true)
                     .write(true)
                     .append(true)
                     .open(&log_file_path);
-
-                let (stdout_cfg, stderr_cfg) = match log_file_result {
+                let (stdout_cfg2, stderr_cfg2) = match log_file_result {
                     Ok(file) => {
                         let stdout_file = file.try_clone().map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null());
                         let stderr_file = std::process::Stdio::from(file);
                         (stdout_file, stderr_file)
                     }
-                    Err(_) => (std::process::Stdio::null(), std::process::Stdio::null())
+                    Err(_) => (std::process::Stdio::null(), std::process::Stdio::null()),
                 };
-
-                match Command::new(&python_path)
-                    .args(&["-m", "uvicorn", "job_search_assistant.api.main:app", "--host", "127.0.0.1", "--port", "8000"])
-                    .current_dir(&backend_root)
-                    .stdout(stdout_cfg)
-                    .stderr(stderr_cfg)
-                    .spawn()
-                {
+                let python_path = backend::resolve_python(manifest_dir);
+                match backend::spawn_python(&python_path, &project_root, &data_dir, stdout_cfg2, stderr_cfg2) {
                     Ok(child) => {
                         *state.0.lock().unwrap() = Some(child);
-                        println!("🚀 FastAPI backend sidecar successfully spawned in background.");
+                        println!("🚀 FastAPI backend spawned via {:?} (cwd={:?})", python_path, project_root);
                     }
-                    Err(e) => {
-                        eprintln!("⚠️ Failed to spawn FastAPI backend at {:?}: {}. Ensure virtual environment exists at .venv.", python_path, e);
-                    }
+                    Err(e) => eprintln!(
+                        "⚠️ Failed to spawn FastAPI backend via {:?} (cwd={:?}): {}. Install uv venv or add python to PATH.",
+                        python_path, project_root, e
+                    ),
                 }
             }
             Ok(())

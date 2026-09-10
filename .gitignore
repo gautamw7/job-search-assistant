@@ -72,6 +72,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# PyInstaller sidecar (built locally, not committed) — keep the dir, ignore the binary
+backend/binaries/
+
 # Tauri
 src-tauri/target/
 dist/
@@ -85,3 +88,21 @@ Thumbs.db
 .env.*.local
 .env.development
 .env.production
+
+# App data (moved from backend/data)
+data/*.json
+data/*.pdf
+data/*.log
+!data/.gitkeep
+
+# Build outputs
+app/__pycache__/
+app/**/__pycache__/
+tests/__pycache__/
+__pycache__/
+*.pyc
+
+# Legacy backend folder (removed after migration)
+# backend/ now at root as app/
+**/__pycache__/
+**/.pytest_cache/
