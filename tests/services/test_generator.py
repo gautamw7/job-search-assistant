@@ -6,13 +6,11 @@ from app.services.generation.service import generate_outreach_message
 @patch("app.services.generation.service.get_enrich_data")
 @patch("app.services.generation.llm.genai.Client")
 @patch("app.services.generation.service.build_resources")
-@patch("app.services.generation.service.load_generated_messages")
-@patch("app.services.generation.service.save_generated_messages")
+@patch("app.services.generation.service.append_generation")
 def test_generate_outreach_message(
-    mock_save_msg, mock_load_msg, mock_build_res, mock_client, mock_enrich
+    mock_append, mock_build_res, mock_client, mock_enrich
 ):
     mock_enrich.return_value = "Enrichment text representation."
-    mock_load_msg.return_value = {}
     mock_build_res.return_value = {
         "user_resume": "Resume",
         "user_communication_style": "Style",
@@ -36,4 +34,7 @@ def test_generate_outreach_message(
 
     assert result == "Generated message content."
     mock_enrich.assert_called_once_with("https://www.linkedin.com/in/test")
-    mock_save_msg.assert_called_once()
+    mock_append.assert_called_once()
+    url, record = mock_append.call_args.args
+    assert url == "https://www.linkedin.com/in/test"
+    assert record["generated_message"] == "Generated message content."

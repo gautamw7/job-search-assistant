@@ -171,11 +171,18 @@ def test_get_messages_found():
             ]
         }
     }
-    with patch("json.load", return_value=mock_history), patch("builtins.open"):
-        response = client.get(
-            "/messages/?linkedin_url=https://www.linkedin.com/in/testuser"
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["generated_message"] == "Hello from history!"
-        assert data["linkedin_url"] == "https://www.linkedin.com/in/testuser"
+    from app.services.generation import save_generated_messages
+
+    save_generated_messages(mock_history)
+    response = client.get(
+        "/messages/?linkedin_url=https://www.linkedin.com/in/testuser"
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["generated_message"] == "Hello from history!"
+    assert data["linkedin_url"] == "https://www.linkedin.com/in/testuser"
+    # Trailing-slash variant resolves to the same contact.
+    variant = client.get(
+        "/messages/?linkedin_url=https://www.linkedin.com/in/testuser/"
+    )
+    assert variant.status_code == 200

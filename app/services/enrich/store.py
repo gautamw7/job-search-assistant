@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.core.logging import get_logger
+from app.infra.db import connect
 from app.infra.json_store import _quarantine, path_lock, save_json
 from app.infra.linkedin import is_linkedin_profile_url, normalize_url
 from app.services.enrich.processor import (
@@ -37,19 +38,70 @@ def load_enrichment_store(path: Path) -> dict:
     return data
 
 
+# ---- SQLite-backed profile cache (migration 004) --------------------------------
+
+
+def _absorb() -> None:
+    from app.services.legacy_import import absorb_legacy_json
+
+    absorb_legacy_json("enrich_data")
+
+
+def _db_get_many(urls: list[str]) -> dict[str, dict]:
+    if not urls:
+        return {}
+    _absorb()
+    found: dict[str, dict] = {}
+    with connect() as conn:
+        for i in range(0, len(urls), 500):
+            chunk = urls[i : i + 500]
+            rows = conn.execute(
+                f"SELECT linkedin_url, data FROM enriched_profiles WHERE linkedin_url IN ({','.join('?' * len(chunk))})",
+                chunk,
+            ).fetchall()
+            found.update({r["linkedin_url"]: json.loads(r["data"]) for r in rows})
+    return found
+
+
+def _db_get(url: str) -> dict | None:
+    return _db_get_many([url]).get(url)
+
+
+def load_all_profiles() -> dict[str, dict]:
+    """Every cached profile, keyed by URL."""
+    _absorb()
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT linkedin_url, data FROM enriched_profiles"
+        ).fetchall()
+    return {r["linkedin_url"]: json.loads(r["data"]) for r in rows}
+
+
 def save_enrich_data(enrich_data: dict, output_path: str | None = None) -> None:
     """Persist profiles keyed by URL. A newer entry replaces the older one.
 
     Replacing (rather than merging) means a refresh reflects the profile as it is
-    now instead of accumulating stale and duplicated list items forever.
+    now instead of accumulating stale and duplicated list items forever. An explicit
+    ``output_path`` writes that JSON file instead (exports, scripts).
     """
-    from app.core.settings import DATA_DIR
-
     if output_path is None or output_path == "data/enrich_data.json":
-        path = DATA_DIR / "enrich_data.json"
-    else:
-        path = Path(output_path)
+        _absorb()
+        with connect() as conn:
+            conn.executemany(
+                "INSERT OR REPLACE INTO enriched_profiles (linkedin_url, data, fetched_at) VALUES (?, ?, ?)",
+                [
+                    (
+                        url,
+                        json.dumps(entry),
+                        entry.get("fetched_at") if isinstance(entry, dict) else None,
+                    )
+                    for url, entry in enrich_data.items()
+                ],
+            )
+        logger.info("enrich data saved entries=%s", len(enrich_data))
+        return
 
+    path = Path(output_path)
     with path_lock(path):
         try:
             existing = load_enrichment_store(path)
@@ -75,10 +127,7 @@ def _is_fresh(entry: dict) -> bool:
 
 
 def cached_enrich_data(linkedin_url: str) -> dict:
-    from app.core.settings import ENRICH_DATA
-
-    existing = load_enrichment_store(ENRICH_DATA)
-    cached = existing.get(linkedin_url, {})
+    cached = _db_get(linkedin_url) or {}
     if (
         isinstance(cached, dict)
         and (cached.get("content") or cached.get("card_info"))
@@ -145,12 +194,7 @@ MAX_BATCH = 20
 
 def get_profile(linkedin_url: str) -> dict:
     """Processed profile dict from the store (no network), or {}."""
-    from app.core.settings import ENRICH_DATA
-
-    try:
-        entry = load_enrichment_store(ENRICH_DATA).get(linkedin_url)
-    except ValueError:
-        return {}
+    entry = _db_get(linkedin_url)
     return entry if isinstance(entry, dict) else {}
 
 
@@ -164,13 +208,18 @@ def _hiring_summary(entry: dict | None) -> tuple[int | None, str | None]:
 def hiring_contacts(linkedin_url: str) -> list[dict]:
     """'People also viewed' for a profile, with free bio signals and, for anyone
     already scraped, how many recent hiring posts they have."""
-    from app.core.settings import ENRICH_DATA
-
-    store = load_enrichment_store(ENRICH_DATA)
-    profile = store.get(linkedin_url)
+    profile = _db_get(linkedin_url)
     if not isinstance(profile, dict):
         raise LookupError("Profile not enriched yet")  # noqa: TRY004
     people = (profile.get("discovery") or {}).get("people_also_viewed") or []
+    known = _db_get_many(
+        [
+            normalize_url(str(p.get("profile_link")))
+            for p in people
+            if isinstance(p, dict)
+            and is_linkedin_profile_url(str(p.get("profile_link") or ""))
+        ]
+    )
 
     contacts: dict[str, dict] = {}
     for person in people:
@@ -182,7 +231,7 @@ def hiring_contacts(linkedin_url: str) -> list[dict]:
         url = normalize_url(link)
         if url in contacts or url == linkedin_url:
             continue
-        posts, latest = _hiring_summary(store.get(url))
+        posts, latest = _hiring_summary(known.get(url))
         contacts[url] = {
             "linkedin_url": url,
             "name": person.get("name") or "",

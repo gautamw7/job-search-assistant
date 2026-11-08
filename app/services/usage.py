@@ -1,7 +1,7 @@
 """Usage ledger, cost estimates, budget limits and user-editable app settings.
 
-Every BrightData profile fetch and every Gemini call is recorded in
-``DATA_DIR/usage.json``. Work running inside ``usage_scope(job_id)`` is also
+Every BrightData profile fetch and every Gemini call is recorded in the
+``usage_events`` table (SQLite). Work running inside ``usage_scope(job_id)`` is also
 totalled in memory so a job can report what *that run* consumed.
 
 Prices are not hard-coded (they change); the user enters them in Settings. Until
@@ -9,6 +9,7 @@ they do, usage is assumed to be on the free tier: it costs $0.00 and is reported
 with ``free_tier_assumed`` so the UI can say so. Count-based limits always work.
 """
 
+import json
 import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -16,11 +17,10 @@ from datetime import datetime
 
 from app.core.logging import get_logger
 from app.core.settings import DATA_DIR
-from app.infra.json_store import load_json, save_json, update_json
+from app.infra.json_store import load_json, save_json
 
 logger = get_logger(__name__)
 
-LEDGER_FILE = "usage.json"
 SETTINGS_FILE = "settings.json"
 
 DEFAULT_SETTINGS: dict = {
@@ -52,10 +52,6 @@ _scope_lock = threading.Lock()
 
 class BudgetExceededError(RuntimeError):
     """A configured monthly limit would be exceeded."""
-
-
-def _ledger_path():
-    return DATA_DIR / LEDGER_FILE
 
 
 def _settings_path():
@@ -150,11 +146,13 @@ def _record(event: dict) -> None:
         with _scope_lock:
             _add(_scope_totals.setdefault(scope, _empty_totals()), event)
     try:
-        update_json(
-            _ledger_path(),
-            lambda d: d.setdefault("events", []).append(event),
-            default={"events": []},
-        )
+        from app.infra.db import connect
+
+        with connect() as conn:
+            conn.execute(
+                "INSERT INTO usage_events (ts, kind, scope, data) VALUES (?, ?, ?, ?)",
+                (event["ts"], event["kind"], event.get("scope"), json.dumps(event)),
+            )
     except Exception:  # usage tracking must never break generation
         logger.exception("failed to record usage event=%s", event)
 
@@ -227,17 +225,19 @@ def _with_cost(totals: dict, pricing: dict) -> dict:
     return {**totals, "estimated_cost": cost, "free_tier_assumed": assumed}
 
 
-def _events() -> list[dict]:
-    data = load_json(_ledger_path(), default={"events": []})
-    events = data.get("events", []) if isinstance(data, dict) else []
-    return [e for e in events if isinstance(e, dict) and "kind" in e]
-
-
 def _totals_since(prefix: str) -> dict:
+    """Totals for events whose timestamp starts with ``prefix`` (a month or a day)."""
+    from app.infra.db import connect
+    from app.services.legacy_import import absorb_legacy_json
+
+    absorb_legacy_json("usage")
     totals = _empty_totals()
-    for event in _events():
-        if str(event.get("ts", "")).startswith(prefix):
-            _add(totals, event)
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT data FROM usage_events WHERE ts LIKE ? || '%'", (prefix,)
+        ).fetchall()
+    for row in rows:
+        _add(totals, json.loads(row["data"]))
     return totals
 
 

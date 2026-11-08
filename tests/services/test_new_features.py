@@ -236,7 +236,9 @@ def test_generate_followup_saves_a_followup_record():
         record["kind"] == "followup"
         and record["generated_message"] == "Quick follow-up"
     )
-    saved = json.loads(GENERATED_MESSAGES.read_text())[ME]["generations"]
+    from app.services.generation import load_generated_messages
+
+    saved = load_generated_messages()[ME]["generations"]
     assert [g.get("kind", "outreach") for g in saved] == ["outreach", "followup"]
     assert tracker.list_contacts()[0]["original_message"] == "Hey"
 

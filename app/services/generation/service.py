@@ -16,9 +16,8 @@ from app.services.generation.llm import (
     regenerate_with_fallback,
 )
 from app.services.generation.store import (
-    history_lock,
-    load_generated_messages,
-    save_generated_messages,
+    append_generation,
+    get_entry,
 )
 from app.services.resources import build_resources, format_preferences
 
@@ -47,20 +46,16 @@ def _fetch_profile(linkedin_url: str, refresh: bool) -> str:
 
 
 def _append_generation(linkedin_url: str, generation: dict) -> None:
-    """Append under a lock using a fresh read, so concurrent workers never lose
-    each other's writes (the slow LLM call happens before this, outside the lock)."""
-    with history_lock():
-        messages = load_generated_messages()
-        entry = messages.setdefault(linkedin_url, {"generations": []})
-        entry.setdefault("generations", []).append(generation)
-        save_generated_messages(messages)
+    """A single INSERT, so concurrent workers can never lose each other's writes
+    (the slow LLM call happens before this)."""
+    append_generation(linkedin_url, generation)
 
 
 def _history_for(linkedin_url: str) -> list[dict]:
-    messages = load_generated_messages()
-    if linkedin_url not in messages:
+    entry = get_entry(linkedin_url)
+    if entry is None:
         raise HistoryNotFoundError(f"No history found for URL: {linkedin_url}")
-    generations = messages[linkedin_url].get("generations", [])
+    generations = entry.get("generations", [])
     if not generations:
         raise HistoryNotFoundError(f"No generations found for URL: {linkedin_url}")
     return generations
@@ -237,7 +232,7 @@ def generate_followup(
     from app.services.tracker import get_tracking
 
     generations = _history_for(linkedin_url)
-    entry = load_generated_messages().get(linkedin_url, {})
+    entry = get_entry(linkedin_url) or {}
     tracking = get_tracking(entry)
     originals = [g for g in generations if g.get("kind", "outreach") != "followup"]
     followups = [g for g in generations if g.get("kind") == "followup"]

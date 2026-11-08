@@ -5,6 +5,8 @@ from app.services.migrations import normalize_keys
 
 
 def test_legacy_keys_are_normalized_merged_and_backed_up():
+    for old in DATA_DIR.glob("*.bak-*"):
+        old.unlink()
     GENERATED_MESSAGES.write_text(
         json.dumps(
             {
@@ -55,7 +57,12 @@ def test_legacy_keys_are_normalized_merged_and_backed_up():
     assert json.loads(ENRICH_DATA.read_text())["https://www.linkedin.com/in/me"][
         "content"
     ] == {"a": 1, "b": 2}
-    assert len(list(DATA_DIR.glob("generated_messages.json.bak-*"))) == 1
+    backups = [
+        p
+        for p in DATA_DIR.glob("generated_messages.json.bak-*")
+        if "imported" not in p.name
+    ]
+    assert len(backups) == 1
 
     assert normalize_keys() == {"generated_messages": 0, "enrich_data": 0}  # idempotent
     for p in DATA_DIR.glob("*.bak-*"):
