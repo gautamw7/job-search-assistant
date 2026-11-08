@@ -1,15 +1,13 @@
-import json
-import os
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
 from app.api.schemas import UserCommunication
-from app.services.logger import get_logger
-from app.services.paths import PROJECT_ROOT as ROOT_DIR
+from app.core.logging import get_logger
 from app.services.user_communication import (
     get_user_communication_prompt,
+    read_saved_style,
+    save_style,
 )
 
 logger = get_logger(__name__)
@@ -21,91 +19,36 @@ router = APIRouter(
 )
 
 
-@router.get("/")
-async def get_user_communication():
-    """
-    Get the currently saved user communication style.
-
-    If no style has been saved, return the default style.
-    """
-    config = get_user_communication_prompt()
-
-    output_path = config.get(
-        "output_path",
-        "data/user_communication_style.json",
+def _default_response(config: dict) -> UserCommunication:
+    default_content = config.get("default", "")
+    return UserCommunication(
+        content=default_content,
+        style=default_content,
+        source="default",
+        saved_at=datetime.now(),
     )
-    if not os.path.isabs(output_path):
-        output_path = ROOT_DIR / output_path
-    else:
-        output_path = Path(output_path)
 
-    try:
-        with open(output_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
 
-        # Ensure backwards compatibility with dicts lacking 'style' key
-        content = data.get("content", data.get("style", ""))
-
-        # Clean up invalid event serialization if present
-        if not content or content == '{"isTrusted":true}':
-            logger.warning(
-                "user communication invalid content event serialization, returning default"
-            )
-            default_content = config.get("default", "")
-            return UserCommunication(
-                content=default_content,
-                style=default_content,
-                source="default",
-                saved_at=datetime.now(),
-            )
-
-        source = data.get("source", "response")
-        saved_at = data.get("saved_at", datetime.now().isoformat())
-
-        logger.debug("user communication loaded source=%s path=%s", source, output_path)
-        return UserCommunication(
-            content=content,
-            style=content,
-            source=source,
-            saved_at=saved_at,
-        )
-
-    except FileNotFoundError:
-        logger.info(
-            "user communication file not found, returning default path=%s", output_path
-        )
-        default_content = config.get("default", "")
-        return UserCommunication(
-            content=default_content,
-            style=default_content,
-            source="default",
-            saved_at=datetime.now(),
-        )
-    except Exception as e:
-        logger.exception(
-            "failed to load user communication path=%s err=%s", output_path, e
-        )
-        default_content = config.get("default", "")
-        return UserCommunication(
-            content=default_content,
-            style=default_content,
-            source="default",
-            saved_at=datetime.now(),
-        )
+@router.get("/")
+def get_user_communication():
+    """Return the saved communication style, or the default (source="default")."""
+    config = get_user_communication_prompt()
+    saved = read_saved_style(config)
+    if not saved:
+        logger.info("no saved user communication, returning default")
+        return _default_response(config)
+    return UserCommunication(
+        content=saved["content"],
+        style=saved["content"],
+        source=saved["source"],
+        saved_at=saved["saved_at"],
+    )
 
 
 @router.get("/prompt")
-async def get_prompt():
-    """
-    Get the configuration needed by the frontend
-    to build the user communication flow.
-    """
+def get_prompt():
+    """Configuration the frontend needs to build the style questionnaire."""
     config = get_user_communication_prompt()
-    logger.debug(
-        "user communication prompt served questions=%s",
-        len(config.get("questions", [])),
-    )
-
     return {
         "prompt": config.get("prompt", ""),
         "default": config.get("default", ""),
@@ -115,78 +58,30 @@ async def get_prompt():
 
 @router.post("/update")
 async def update_user_communication(request: Request):
-    """
-    Save the final user communication style.
-    Accepts either a plain string or a JSON object with content/source.
-    """
+    """Save the final style. Accepts a plain string or {content, source}."""
     try:
         body = await request.json()
     except Exception:
         body = ""
 
-    if isinstance(body, str):
-        content = body.strip()
-        source = "response"
-    elif isinstance(body, dict):
-        content = str(body.get("content", body.get("style", ""))).strip()
+    if isinstance(body, dict):
+        content = str(body.get("content", body.get("style", "")))
         source = body.get("source", "response")
     else:
-        content = str(body).strip()
+        content = str(body) if body is not None else ""
         source = "response"
 
-    if not content:
-        logger.warning("update user communication rejected: empty content")
-        raise HTTPException(
-            status_code=400, detail="Communication style cannot be empty."
-        )
-
     config = get_user_communication_prompt()
-
-    output_path = config.get(
-        "output_path",
-        "data/user_communication_style.json",
-    )
-    if not os.path.isabs(output_path):
-        output_path = ROOT_DIR / output_path
-    else:
-        output_path = Path(output_path)
-
-    directory = os.path.dirname(output_path)
-
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-
-    saved_at = datetime.now()
-
-    user_communication = {
-        "content": content,
-        "style": content,
-        "source": source,
-        "saved_at": saved_at.isoformat(),
-    }
-
     try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(
-                user_communication,
-                f,
-                ensure_ascii=False,
-                indent=4,
-            )
-
-        logger.info(
-            "user communication saved source=%s path=%s len=%s",
-            source,
-            output_path,
-            len(content),
-        )
-        return user_communication
-
-    except OSError as z:
-        logger.exception(
-            "failed to save user communication path=%s err=%s", output_path, z
-        )
+        record = save_style(config, content, source)
+    except ValueError as e:
+        logger.warning("update user communication rejected: %s", e)
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OSError as e:
+        logger.exception("failed to save user communication err=%s", e)
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to save user communication style: {z!s}",
-        )
+            status_code=500, detail=f"Failed to save user communication style: {e!s}"
+        ) from e
+
+    logger.info("user communication saved source=%s len=%s", source, len(content))
+    return record

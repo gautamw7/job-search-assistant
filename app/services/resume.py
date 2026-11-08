@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pymupdf4llm
 
-from app.services.logger import get_logger
-from app.services.paths import RESUME_MD
+from app.core.logging import get_logger
+from app.core.settings import RESUME_MD
 
 logger = get_logger(__name__)
 
@@ -30,12 +30,27 @@ def validate_markdown(markdown_text: str) -> None:
         "employment",
         "history",
     ]
-    has_keywords = any(kw in text.lower() for kw in keywords)
+    lowered = text.lower()
+    keyword_hits = sum(1 for kw in keywords if kw in lowered)
 
-    if not has_contact and not has_keywords:
+    # A resume has contact details plus at least one section heading, or several
+    # section headings on their own. A single stray word like "work" is not enough.
+    looks_like_resume = (has_contact and keyword_hits >= 1) or keyword_hits >= 3
+    if not looks_like_resume:
         raise ValueError(
             "The uploaded document does not appear to be a valid resume (missing contact info or standard resume sections). Please upload a valid resume PDF."
         )
+
+
+def convert_pdf_to_markdown(pdf_path: str) -> str:
+    """Synchronous PDF -> validated markdown (does not write any file)."""
+    if not Path(pdf_path).exists():
+        logger.error("pdf not found path=%s", pdf_path)
+        raise FileNotFoundError(f"PDF file not found at {pdf_path}")
+    logger.info("extracting markdown from pdf path=%s", pdf_path)
+    markdown_text = pymupdf4llm.to_markdown(pdf_path)
+    validate_markdown(markdown_text)
+    return markdown_text
 
 
 async def parse_resume_to_markdown(pdf_path: str):
@@ -46,10 +61,7 @@ async def parse_resume_to_markdown(pdf_path: str):
     if check_resume_markdown():
         logger.warning("markdown file exists, will be overwritten path=%s", RESUME_MD)
 
-    logger.info("extracting markdown from pdf path=%s", pdf_path)
-    markdown_text = await asyncio.to_thread(pymupdf4llm.to_markdown, pdf_path)
-    validate_markdown(markdown_text)
-
+    markdown_text = await asyncio.to_thread(convert_pdf_to_markdown, pdf_path)
     logger.info(
         "successfully extracted markdown from %s len=%s", pdf_path, len(markdown_text)
     )

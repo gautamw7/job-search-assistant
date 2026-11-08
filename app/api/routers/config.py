@@ -2,7 +2,7 @@ import requests
 from fastapi import APIRouter, HTTPException
 
 from app.api.schemas import APIKeyRequest
-from app.services.logger import get_logger
+from app.core.logging import get_logger
 from app.services.secrets import (
     get_secure_key as _secrets_get,
 )
@@ -43,7 +43,8 @@ def set_secure_key(service: str, api_key: str):
     _secrets_set(service, api_key)
 
 
-def test_brightdata_connection(api_key: str):
+def test_brightdata_connection(api_key: str) -> bool:
+    """Return True if verified, False if the network check could not run."""
     if not api_key or len(api_key) < 5:
         logger.warning(
             "brightdata key format invalid len=%s", len(api_key) if api_key else 0
@@ -56,7 +57,7 @@ def test_brightdata_connection(api_key: str):
         }
         logger.info("testing brightdata connection")
         response = requests.get(
-            "https://api.brightdata.com/network_status/all", headers=headers, timeout=8
+            "https://api.brightdata.com/zone", headers=headers, timeout=8
         )
         if response.status_code in [401, 403]:
             logger.warning("brightdata auth failed status=%s", response.status_code)
@@ -66,13 +67,16 @@ def test_brightdata_connection(api_key: str):
         logger.info(
             "brightdata connection test succeeded status=%s", response.status_code
         )
+        return True
     except HTTPException:
         raise
     except Exception as e:
         logger.warning("brightdata connection test network error: %s", e)
+        return False
 
 
-def test_gemini_connection(api_key: str):
+def test_gemini_connection(api_key: str) -> bool:
+    """Return True if verified, False if the network check could not run."""
     if not api_key or len(api_key) < 5:
         logger.warning(
             "gemini key format invalid len=%s", len(api_key) if api_key else 0
@@ -81,7 +85,8 @@ def test_gemini_connection(api_key: str):
     try:
         logger.info("testing gemini connection")
         response = requests.get(
-            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            headers={"x-goog-api-key": api_key},
             timeout=8,
         )
         if response.status_code in [400, 401, 403]:
@@ -91,10 +96,12 @@ def test_gemini_connection(api_key: str):
                 detail="Invalid Gemini API key (Unauthorized/Forbidden).",
             )
         logger.info("gemini connection test succeeded status=%s", response.status_code)
+        return True
     except HTTPException:
         raise
     except Exception as e:
         logger.warning("gemini connection test network error: %s", e)
+        return False
 
 
 @router.post("/brightdata")
@@ -104,10 +111,15 @@ def store_brightdata_credentials(req: APIKeyRequest):
         logger.warning("brightdata store failed: empty key")
         raise HTTPException(status_code=400, detail="API key is required.")
     logger.info("storing brightdata credentials")
-    test_brightdata_connection(api_key)
+    verified = test_brightdata_connection(api_key)
     set_secure_key("brightdata", api_key)
-    logger.info("brightdata credentials stored successfully")
-    return {"message": "BrightData credentials stored successfully."}
+    logger.info("brightdata credentials stored successfully verified=%s", verified)
+    if verified is False:
+        return {
+            "message": "BrightData credentials saved, but could not be verified (network unreachable).",
+            "verified": False,
+        }
+    return {"message": "BrightData credentials stored successfully.", "verified": True}
 
 
 @router.post("/gemini")
@@ -117,10 +129,15 @@ def store_gemini_credentials(req: APIKeyRequest):
         logger.warning("gemini store failed: empty key")
         raise HTTPException(status_code=400, detail="API key is required.")
     logger.info("storing gemini credentials")
-    test_gemini_connection(api_key)
+    verified = test_gemini_connection(api_key)
     set_secure_key("gemini", api_key)
-    logger.info("gemini credentials stored successfully")
-    return {"message": "Gemini credentials stored successfully."}
+    logger.info("gemini credentials stored successfully verified=%s", verified)
+    if verified is False:
+        return {
+            "message": "Gemini credentials saved, but could not be verified (network unreachable).",
+            "verified": False,
+        }
+    return {"message": "Gemini credentials stored successfully.", "verified": True}
 
 
 @router.get("/brightdata")
@@ -144,7 +161,11 @@ def test_stored_brightdata_credentials():
         logger.warning("brightdata test failed: no stored credentials")
         raise HTTPException(status_code=404, detail="Credentials not found.")
     logger.info("testing stored brightdata credentials")
-    test_brightdata_connection(api_key)
+    if test_brightdata_connection(api_key) is False:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not reach BrightData to verify the key. Check your connection.",
+        )
     logger.info("stored brightdata credentials valid")
     return {"message": "BrightData API key is valid and working."}
 
@@ -168,6 +189,10 @@ def test_stored_gemini_credentials():
         logger.warning("gemini test failed: no stored credentials")
         raise HTTPException(status_code=404, detail="Credentials not found.")
     logger.info("testing stored gemini credentials")
-    test_gemini_connection(api_key)
+    if test_gemini_connection(api_key) is False:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not reach Gemini to verify the key. Check your connection.",
+        )
     logger.info("stored gemini credentials valid")
     return {"message": "Gemini API key is valid and working."}

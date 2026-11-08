@@ -1,110 +1,169 @@
-import { Plus, RefreshCw, Sparkles, XCircle } from "lucide-react";
-import type { MessageCardData, TargetRow } from "../../types";
-import { MessageCards } from "./components/MessageCards";
-import { ProgressBanner } from "./components/ProgressBanner";
+import { ClipboardPaste, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { PageHeader, Spinner } from "../../components/ui";
+import { useToast } from "../../context/ToastContext";
+import type { HistoryEntry, ProfileCard } from "../../types";
+import { ProgressPanel } from "./components/ProgressPanel";
+import { ResultCard } from "./components/ResultCard";
 import { TargetTable } from "./components/TargetTable";
+import type { useGenerator } from "./useGenerator";
 
 type Props = {
-  rows: TargetRow[];
-  generatedCards: MessageCardData[];
-  isGenerating: boolean;
-  genProgressStage: string;
-  elapsedSeconds: number;
-  enrichCache: Record<string, unknown>;
-  expandedCards: Record<string, boolean>;
-  openHistoryDrawers: Record<string, boolean>;
-  tweakInputs: Record<string, string>;
-  copiedUrl: string | null;
-  historyData: Record<string, unknown>;
-  onAddRow: () => void;
-  onRemoveRow: (id: string) => void;
-  onUpdateRow: (id: string, field: keyof TargetRow, val: string) => void;
-  onGenerate: () => void;
-  onStop: () => void;
-  onToggleExpand: (url: string) => void;
-  onCopy: (text: string, url: string) => void;
-  onRetry: (card: MessageCardData, idx: number) => void;
-  onRegenerate: (card: MessageCardData, idx: number) => void;
-  onTweakChange: (url: string, val: string) => void;
-  onToggleHistory: (url: string) => void;
+  gen: ReturnType<typeof useGenerator>;
+  history: Record<string, HistoryEntry>;
+  cards: Record<string, ProfileCard>;
+  copiedKey: string | null;
+  onCopy: (text: string, key: string) => void;
+  missingKeys: string[];
+  onOpenSettings: () => void;
+  onMarkSent: (url: string) => void;
 };
 
-export function GeneratorPage({
-  rows,
-  generatedCards,
-  isGenerating,
-  genProgressStage,
-  elapsedSeconds,
-  enrichCache,
-  expandedCards,
-  openHistoryDrawers,
-  tweakInputs,
-  copiedUrl,
-  historyData,
-  onAddRow,
-  onRemoveRow,
-  onUpdateRow,
-  onGenerate,
-  onStop,
-  onToggleExpand,
-  onCopy,
-  onRetry,
-  onRegenerate,
-  onTweakChange,
-  onToggleHistory,
-}: Props) {
+export function GeneratorPage({ gen, history, cards, copiedKey, onCopy, missingKeys, onOpenSettings, onMarkSent }: Props) {
+  const toast = useToast();
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const invalid = Object.keys(gen.issues).length;
+  const canGenerate = gen.readyCount > 0 && invalid === 0 && !gen.isRunning && missingKeys.length === 0;
+
+  const applyPaste = () => {
+    const added = gen.addUrls(pasteText);
+    if (added) toast.success(`Added ${added} profile${added === 1 ? "" : "s"}.`);
+    else toast.info("No new LinkedIn profile links found in that text.");
+    setPasteText("");
+    setPasteOpen(false);
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-100">Batch Outreach Generator</h2>
-          <p className="text-xs text-slate-400">Queue target LinkedIn profile URLs and notes to generate personalized AI outreach messages.</p>
-        </div>
-        <button
-          onClick={onAddRow}
-          className="flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-all"
-        >
-          <Plus className="h-4 w-4" /> Add Target Row
-        </button>
-      </div>
-
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur shadow-xl space-y-4">
-        <TargetTable rows={rows} onAddRow={onAddRow} onRemoveRow={onRemoveRow} onUpdateRow={onUpdateRow} />
-        <ProgressBanner isGenerating={isGenerating} stage={genProgressStage} elapsedSeconds={elapsedSeconds} />
-        <div className="flex justify-end pt-2 gap-3">
-          <button
-            onClick={onStop}
-            disabled={!isGenerating}
-            className="flex items-center gap-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 px-5 py-3 text-xs font-semibold text-white shadow-lg transition-all disabled:opacity-30"
-          >
-            <XCircle className="h-4 w-4" /> Stop Generation
-          </button>
-          <button
-            onClick={onGenerate}
-            disabled={isGenerating}
-            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-xs font-semibold text-white shadow-lg hover:bg-indigo-500 disabled:opacity-50 transition-all"
-          >
-            {isGenerating ? <><RefreshCw className="h-4 w-4 animate-spin" /> Generating Outreach...</> : <><Sparkles className="h-4 w-4" /> Generate All Outreach ({rows.length})</>}
-          </button>
-        </div>
-      </div>
-
-      <MessageCards
-        generatedCards={generatedCards}
-        rows={rows}
-        enrichCache={enrichCache}
-        expandedCards={expandedCards}
-        openHistoryDrawers={openHistoryDrawers}
-        tweakInputs={tweakInputs}
-        copiedUrl={copiedUrl}
-        historyData={historyData as Record<string, { generations?: Array<{ generated_message: string; generated_at: string }> }>}
-        onToggleExpand={onToggleExpand}
-        onCopy={onCopy}
-        onRetry={onRetry}
-        onRegenerate={onRegenerate}
-        onTweakChange={onTweakChange}
-        onToggleHistory={onToggleHistory}
+    <div
+      className="mx-auto max-w-5xl space-y-6"
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && canGenerate) {
+          e.preventDefault();
+          gen.generate();
+        }
+      }}
+    >
+      <PageHeader
+        title="Outreach generator"
+        subtitle="Add LinkedIn profiles and get a personalized message for each one."
+        actions={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setPasteOpen((o) => !o)} aria-expanded={pasteOpen}>
+              <ClipboardPaste className="h-4 w-4" aria-hidden /> Paste links
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={gen.clearRows} disabled={gen.isRunning}>
+              <Trash2 className="h-4 w-4" aria-hidden /> Clear
+            </button>
+          </>
+        }
       />
+
+      {missingKeys.length > 0 && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
+          <span>
+            Add your <strong>{missingKeys.join(" and ")}</strong> API key{missingKeys.length > 1 ? "s" : ""} before generating.
+          </span>
+          <button type="button" className="btn btn-secondary" onClick={onOpenSettings}>
+            Open API keys
+          </button>
+        </div>
+      )}
+
+      <section className="card space-y-4 p-5" aria-label="Targets">
+        {pasteOpen && (
+          <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <label htmlFor="paste-links" className="text-xs font-medium text-slate-300">
+              Paste any text containing LinkedIn profile links (one per line, a spreadsheet column, etc.)
+            </label>
+            <textarea
+              id="paste-links"
+              rows={4}
+              autoFocus
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              className="input font-mono"
+              placeholder={"https://www.linkedin.com/in/jane-doe\nhttps://www.linkedin.com/in/john-smith"}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn btn-ghost" onClick={() => setPasteOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={applyPaste} disabled={!pasteText.trim()}>
+                Add profiles
+              </button>
+            </div>
+          </div>
+        )}
+
+        <TargetTable rows={gen.rows} issues={gen.issues} disabled={gen.isRunning} onRemove={gen.removeRow} onUpdate={gen.updateRow} />
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4">
+          <button type="button" className="btn btn-ghost" onClick={gen.addRow} disabled={gen.isRunning}>
+            <Plus className="h-4 w-4" aria-hidden /> Add profile
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-[11px] text-slate-500 sm:inline">
+              {invalid ? `${invalid} link${invalid > 1 ? "s" : ""} need fixing` : "Ctrl/⌘ + Enter to generate"}
+            </span>
+            <button type="button" onClick={gen.generate} disabled={!canGenerate} className="btn btn-primary !px-5 !py-2.5">
+              {gen.isRunning ? (
+                <>
+                  <Spinner /> Generating…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" aria-hidden /> Generate {gen.readyCount || ""} message
+                  {gen.readyCount === 1 ? "" : "s"}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <ProgressPanel
+        cards={gen.cards}
+        done={gen.progress.done}
+        total={gen.progress.total}
+        elapsed={gen.elapsed}
+        isRunning={gen.isRunning}
+        usage={gen.job?.usage}
+        onCancel={gen.cancel}
+      />
+
+      {gen.cards.length > 0 ? (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-slate-200">Results</h3>
+          {gen.cards
+            .filter((c) => c.status === "success" || c.status === "failed" || c.generated_message || c.error)
+            .map((c) => (
+              <ResultCard
+                key={c.linkedin_url}
+                target={c}
+                card={cards[c.linkedin_url]}
+                versions={history[c.linkedin_url]?.generations ?? []}
+                busy={!!gen.busy[c.linkedin_url]}
+                copiedKey={copiedKey}
+                onCopy={onCopy}
+                onRetry={gen.retry}
+                onRegenerate={gen.regenerate}
+                onAddProfiles={(urls) => {
+                  const added = gen.addUrls(urls.join("\n"));
+                  toast.success(added ? `Added ${added} profile${added === 1 ? "" : "s"} to the generator.` : "Those profiles are already in your list.");
+                }}
+                onMarkSent={onMarkSent}
+                tracking={history[c.linkedin_url]?.tracking?.status}
+              />
+            ))}
+        </div>
+      ) : (
+        !gen.isRunning && (
+          <p className="flex items-center justify-center gap-2 py-8 text-xs text-slate-500">
+            <Send className="h-4 w-4" aria-hidden /> Your generated messages will appear here.
+          </p>
+        )
+      )}
     </div>
   );
 }

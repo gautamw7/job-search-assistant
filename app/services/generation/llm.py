@@ -1,67 +1,101 @@
-"""Internal: LLM fallback chain + generation calls."""
+"""Internal: Gemini model fallback chain (single implementation)."""
 
 from google import genai
 from google.genai import types
 
-from app.services.logger import get_logger
-from app.services.paths import PROJECT_ROOT as ROOT_DIR
-from app.utils.config import load_config
+from app.core.logging import get_logger
+from app.core.settings import MODEL_CONFIG
+from app.infra.config import load_config
+from app.services import usage
+from app.services.secrets import get_gemini_key
 
 logger = get_logger(__name__)
 
+REQUEST_TIMEOUT_MS = 90_000
+_FATAL_STATUS = {401, 403}  # a bad key will not get better on another model
+
+
+class LLMError(RuntimeError):
+    """All configured models failed to produce a message."""
+
 
 def get_fallback_models() -> list[str]:
-    primary = ROOT_DIR / "config" / "model_config.yaml"
-    legacy = ROOT_DIR / "prompts" / "model_config.yaml"
-    path = primary if primary.exists() else legacy
-    if primary.exists() and legacy.exists():
-        logger.debug("both config/model_config.yaml and prompts/model_config.yaml exist, using config/")
-    elif not primary.exists() and legacy.exists():
-        logger.warning("config/model_config.yaml not found, falling back to prompts/model_config.yaml")
-    model_config = load_config(str(path))
-    models = model_config.get("gemini", {}).get("models", [])
+    model_config = load_config(MODEL_CONFIG)
+    models = (model_config.get("gemini") or {}).get("models", [])
+    if not models:
+        raise LLMError(f"No Gemini models configured in {MODEL_CONFIG}.")
     logger.debug("fallback models loaded count=%s models=%s", len(models), models)
     return models
 
 
-def generate_with_fallback(prompt: str, system_prompt: str | None = None) -> str:
-    client = genai.Client()
-    fallback = get_fallback_models()
-    response = None
-    for model in fallback:
+def _client() -> genai.Client:
+    """Build a client with the stored key, not whatever the environment holds."""
+    http_options = types.HttpOptions(timeout=REQUEST_TIMEOUT_MS)
+    api_key = get_gemini_key()
+    if api_key:
+        return genai.Client(api_key=api_key, http_options=http_options)
+    return genai.Client(http_options=http_options)
+
+
+def _int(value) -> int:
+    return value if isinstance(value, int) else 0
+
+
+def _record_usage(model: str, response, purpose: str) -> None:
+    meta = getattr(response, "usage_metadata", None)
+    usage.record_gemini(
+        model,
+        _int(getattr(meta, "prompt_token_count", 0)),
+        _int(getattr(meta, "candidates_token_count", 0)),
+        purpose,
+    )
+
+
+def generate_with_fallback(
+    prompt: str,
+    system_prompt: str | None = None,
+    *,
+    json_mode: bool = False,
+    purpose: str = "outreach",
+) -> str:
+    usage.check_budget()
+    client = _client()
+    config_kwargs = {}
+    if system_prompt:
+        config_kwargs["system_instruction"] = system_prompt
+    if json_mode:
+        config_kwargs["response_mime_type"] = "application/json"
+    config = types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+    last_error: Exception | None = None
+
+    for model in get_fallback_models():
         try:
-            logger.info("trying model=%s prompt_len=%s", model, len(prompt))
+            logger.info(
+                "trying model=%s purpose=%s prompt_len=%s", model, purpose, len(prompt)
+            )
             kwargs = {"model": model, "contents": prompt}
-            if system_prompt:
-                kwargs["config"] = types.GenerateContentConfig(system_instruction=system_prompt)
+            if config is not None:
+                kwargs["config"] = config
             response = client.models.generate_content(**kwargs)
-            if response and response.text:
-                logger.info("model succeeded model=%s len=%s", model, len(response.text))
-                return response.text
+            _record_usage(model, response, purpose)
+            text = getattr(response, "text", None)
+            if isinstance(text, str) and text.strip():
+                logger.info("model succeeded model=%s len=%s", model, len(text))
+                return text
             logger.warning("model returned empty response model=%s", model)
-        except Exception:
+            last_error = LLMError(f"{model} returned an empty response")
+        except Exception as e:
             logger.warning("model %s failed", model, exc_info=True)
-            continue
-    if not response or not response.text:
-        raise RuntimeError("Gemini model returned empty response or failed to generate message.")
-    return response.text
+            last_error = e
+            if getattr(e, "code", None) in _FATAL_STATUS:
+                raise LLMError(
+                    "Gemini rejected the API key. Check it in Settings."
+                ) from e
+
+    raise LLMError(
+        f"All Gemini models failed. Last error: {last_error}"
+    ) from last_error
 
 
-def regenerate_with_fallback(prompt: str) -> str:
-    client = genai.Client()
-    fallback = get_fallback_models()
-    response = None
-    for model in fallback:
-        try:
-            logger.info("trying model=%s prompt_len=%s", model, len(prompt))
-            response = client.models.generate_content(model=model, contents=prompt)
-            if response and response.text:
-                logger.info("model succeeded model=%s len=%s", model, len(response.text))
-                return response.text
-            logger.warning("model returned empty response model=%s", model)
-        except Exception:
-            logger.warning("model %s failed", model, exc_info=True)
-            continue
-    if not response or not response.text:
-        raise RuntimeError("Gemini model returned empty response or failed during regeneration.")
-    return response.text
+def regenerate_with_fallback(prompt: str, system_prompt: str | None = None) -> str:
+    return generate_with_fallback(prompt, system_prompt=system_prompt, purpose="refine")

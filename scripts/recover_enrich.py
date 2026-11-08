@@ -7,12 +7,11 @@ Single-threaded, skip existing dict entries, append via save_enrich_data.
 import json
 import time
 
+from app.core.logging import get_logger
+from app.core.settings import DATA_DIR
 from app.services.enrich.fetcher import fetch_enrich_data
 from app.services.enrich.processor import process_enrich_data
 from app.services.enrich.store import save_enrich_data
-
-from app.services.logger import get_logger
-from app.services.paths import DATA_DIR
 from app.services.secrets import get_brightdata_key
 
 logger = get_logger(__name__)
@@ -25,7 +24,7 @@ def main():
     gen_data = {}
     if gen_path.exists():
         try:
-            gen_data = json.load(open(gen_path, encoding="utf-8"))
+            gen_data = json.loads(gen_path.read_text(encoding="utf-8"))
         except Exception as e:
             logger.warning(
                 "failed to load generated_messages path=%s err=%s", gen_path, e
@@ -34,7 +33,7 @@ def main():
     enrich_data = {}
     if enrich_path.exists():
         try:
-            enrich_data = json.load(open(enrich_path, encoding="utf-8"))
+            enrich_data = json.loads(enrich_path.read_text(encoding="utf-8"))
         except Exception as e:
             logger.warning("failed to load enrich_data path=%s err=%s", enrich_path, e)
 
@@ -103,7 +102,7 @@ def main():
     )
     # Final count
     try:
-        final = json.load(open(enrich_path, encoding="utf-8"))
+        final = json.loads(enrich_path.read_text(encoding="utf-8"))
         logger.info("final enrich_data entries=%s", len(final))
     except Exception as e:
         raise ValueError("failed to load final enrich_data.json %s", e)

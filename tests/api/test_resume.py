@@ -35,11 +35,11 @@ def test_get_resume_success(mock_get_md, mock_check):
 
 
 def test_upload_resume_invalid_file_type():
-    """Test uploading non-PDF file to /resume/ returns error message."""
+    """Uploading a non-PDF is rejected with a real 4xx status."""
     files = {"file": ("test.txt", b"plain text content", "text/plain")}
     response = client.post("/resume/", files=files)
-    assert response.status_code == 200
-    assert response.json() == {"error": "Only PDF files are allowed."}
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only PDF files are allowed."
 
 
 @patch("app.api.routers.resume.parse_resume_to_markdown")

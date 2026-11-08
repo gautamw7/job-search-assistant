@@ -65,9 +65,7 @@ def test_get_brightdata_credentials_not_found(mock_get_pwd):
     """Test retrieving BrightData credentials when none are stored."""
     mock_get_pwd.return_value = None
     with (
-        patch(
-            "app.services.secrets._get_local_secret", return_value=None
-        ),
+        patch("app.services.secrets._get_local_secret", return_value=None),
         patch("os.getenv", return_value=None),
     ):
         response = client.get("/config/brightdata")

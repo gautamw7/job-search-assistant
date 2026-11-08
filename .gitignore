@@ -106,3 +106,9 @@ __pycache__/
 # backend/ now at root as app/
 **/__pycache__/
 **/.pytest_cache/
+
+# Data backups and quarantined corrupt files (contain personal data)
+data/*.bak-*
+data/*.corrupt-*
+data/*.sqlite*
+data/*.db

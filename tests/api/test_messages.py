@@ -92,8 +92,8 @@ def test_create_messages_batch_success(mock_generate):
 
 
 @patch("app.api.routers.messages.generate_outreach_message")
-def test_create_messages_batch_all_failure_bubbles_up(mock_generate):
-    """Test that total batch generation failure bubbles up as an HTTP 500 error."""
+def test_create_messages_batch_all_failure_returns_failed_cards(mock_generate):
+    """Test that total batch generation failure returns 200 with failed status cards."""
     mock_generate.side_effect = RuntimeError("Gemini quota exceeded")
     payload = [
         {
@@ -103,8 +103,11 @@ def test_create_messages_batch_all_failure_bubbles_up(mock_generate):
         }
     ]
     response = client.post("/messages/batch", json=payload)
-    assert response.status_code == 500
-    assert "Gemini quota exceeded" in response.json()["detail"]
+    assert response.status_code == 200
+    results = response.json()
+    assert len(results) == 1
+    assert results[0]["status"] == "failed"
+    assert "Gemini quota exceeded" in results[0]["error"]
 
 
 @patch("app.api.routers.messages.regenerate_responses")

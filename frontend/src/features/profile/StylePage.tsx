@@ -1,50 +1,99 @@
-import { Check, Copy } from "lucide-react";
+import { RotateCcw, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "../../api";
+import { CopyButton, PageHeader, Spinner } from "../../components/ui";
+import { useToast } from "../../context/ToastContext";
+import { errorMessage } from "../../lib/http";
+
+const MAX_CHARS = 8000;
 
 type Props = {
-  styleText: string;
-  fullPrompt: string;
-  copiedUrl: string | null;
-  styleConfig: unknown;
-  onStyleChange: (v: string) => void;
-  onSave: (e: React.FormEvent) => void;
-  onCopy: (text: string, url: string) => void;
-  isSaving: boolean;
+  saved: string;
+  source: "response" | "questions" | "default";
+  copiedKey: string | null;
+  onCopy: (text: string, key: string) => void;
+  onSaved: () => void;
 };
 
-export function StylePage({ styleText, fullPrompt, copiedUrl, onStyleChange, onSave, onCopy, isSaving }: Props) {
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-100">Communication Style</h2>
-        <p className="text-xs text-slate-400">Define how your outreach messages should sound - tone, directness, formatting.</p>
-      </div>
+export function StylePage({ saved, source, copiedKey, onCopy, onSaved }: Props) {
+  const toast = useToast();
+  const [text, setText] = useState(saved);
+  const [prompt, setPrompt] = useState({ prompt: "", default: "" });
+  const [saving, setSaving] = useState(false);
 
-      {fullPrompt && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-3 flex items-center justify-between">
-          <span className="text-xs text-slate-400">Full analyst prompt</span>
-          <button type="button" onClick={() => onCopy(fullPrompt, "style-prompt")} className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 text-xs font-semibold">
-            {copiedUrl === "style-prompt" ? <><Check className="h-3.5 w-3.5" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy Prompt</>}
-          </button>
+  useEffect(() => setText(saved), [saved]);
+  useEffect(() => {
+    api.getStylePrompt().then(setPrompt).catch(() => undefined);
+  }, []);
+
+  const dirty = text.trim() !== saved.trim();
+  const tooLong = text.length > MAX_CHARS;
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.saveStyle(text.trim(), "response");
+      toast.success("Writing style saved.");
+      onSaved();
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not save your style."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title="Writing style"
+        subtitle="How your messages should sound — greeting, directness, length. Used for every generation."
+        actions={
+          <span
+            className={`chip ${
+              source === "default" ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+            }`}
+          >
+            {source === "default" ? "Using default style" : "Custom style"}
+          </span>
+        }
+      />
+
+      {prompt.prompt && (
+        <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="max-w-lg text-xs text-slate-400">
+            Not sure how to describe your style? Paste this prompt into an AI assistant that knows you, then paste its answer below.
+          </p>
+          <CopyButton text={prompt.prompt} id="style-prompt" copiedKey={copiedKey} onCopy={onCopy} label="Copy analyst prompt" className="btn btn-primary" />
         </div>
       )}
 
-      <form onSubmit={onSave} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-        <div className="relative group">
-          <textarea
-            rows={10}
-            value={styleText}
-            onChange={(e) => onStyleChange(e.target.value)}
-            placeholder="e.g. - Greeting: Hey [Name]&#10;- Tone: Professional yet conversational"
-            className="w-full rounded-xl border border-slate-800 bg-slate-950 p-4 pr-12 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
-          />
-          <button type="button" onClick={() => onCopy(styleText, "style-text")} className="absolute top-3 right-3 flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 text-xs font-semibold">
-            {copiedUrl === "style-text" ? <><Check className="h-3.5 w-3.5 text-emerald-400" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
-          </button>
-        </div>
-        <div className="flex justify-end">
-          <button type="submit" disabled={isSaving} className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">
-            {isSaving ? "Saving..." : "Save Style"}
-          </button>
+      <form onSubmit={save} className="card space-y-3 p-5">
+        <label htmlFor="style-text" className="text-xs font-medium text-slate-300">
+          Your style guide
+        </label>
+        <textarea
+          id="style-text"
+          rows={12}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className={`input leading-relaxed ${tooLong ? "input-error" : ""}`}
+          placeholder={"- Greeting: Hey [Name],\n- Tone: warm but direct\n- Keep it under 100 words"}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className={`text-[11px] ${tooLong ? "text-rose-400" : "text-slate-500"}`}>
+            {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
+          </span>
+          <div className="flex items-center gap-2">
+            {prompt.default && (
+              <button type="button" className="btn btn-ghost" onClick={() => setText(prompt.default)}>
+                <RotateCcw className="h-4 w-4" aria-hidden /> Load default
+              </button>
+            )}
+            <button type="submit" className="btn btn-primary" disabled={saving || !text.trim() || tooLong || !dirty}>
+              {saving ? <Spinner /> : <Save className="h-4 w-4" aria-hidden />} Save style
+            </button>
+          </div>
         </div>
       </form>
     </div>

@@ -16,13 +16,17 @@ from app.services.enrich.processor import (
     CONTENT_FIELDS,
     HIRING_PATTERNS,
     HIRING_REGEX,
+    activity_to_markdown,
     content_to_markdown,
     map_enrich_data_by_url,
     process_enrich_data,
 )
 from app.services.enrich.store import (
     cached_enrich_data,
+    enrich_many,
     get_enrich_data,
+    get_profile,
+    hiring_contacts,
     save_enrich_data,
 )
 
@@ -31,11 +35,15 @@ __all__ = [
     "CONTENT_FIELDS",
     "HIRING_PATTERNS",
     "HIRING_REGEX",
+    "activity_to_markdown",
     "cached_enrich_data",
     "content_to_markdown",
+    "enrich_many",
     "fetch_enrich_data",
     "generate_input_json",
     "get_enrich_data",
+    "get_profile",
+    "hiring_contacts",
     "map_enrich_data_by_url",
     "process_enrich_data",
     "save_enrich_data",

@@ -31,9 +31,9 @@ run:
 
 build-sidecar:
 	mkdir -p binaries
-	uv run pyinstaller --name job-search-api --onefile --clean --noconfirm --distpath binaries --workpath /tmp/pyinstaller_build --specpath /tmp app/__main__.py
-	mv binaries/job-search-api binaries/job-search-api-x86_64-unknown-linux-gnu 2>/dev/null || true
-	chmod +x binaries/job-search-api* || true
+	uv run pyinstaller --clean --noconfirm --distpath binaries --workpath build/pyinstaller job-search-api.spec
+	mv binaries/job-search-api binaries/job-search-api-$$(rustc -vV | sed -n 's/^host: //p')
+	chmod +x binaries/job-search-api*
 
 tauri-dev:
 	npm --prefix frontend run build

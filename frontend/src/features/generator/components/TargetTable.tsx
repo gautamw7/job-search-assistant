@@ -1,52 +1,107 @@
 import { Trash2 } from "lucide-react";
-import type { TargetRow } from "../../../types";
+import type { Length, TargetRow, Tone } from "../../../types";
 
 type Props = {
   rows: TargetRow[];
-  onAddRow: () => void;
-  onRemoveRow: (id: string) => void;
-  onUpdateRow: (id: string, field: keyof TargetRow, val: string) => void;
+  issues: Record<string, string>;
+  disabled: boolean;
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, patch: Partial<TargetRow>) => void;
 };
 
-export function TargetTable({ rows, onRemoveRow, onUpdateRow }: Props) {
+export function TargetTable({ rows, issues, disabled, onRemove, onUpdate }: Props) {
   return (
-    <div className="space-y-3">
-      {rows.map((row, index) => (
-        <div key={row.id} className="flex items-center gap-3">
-          <span className="w-6 text-center text-xs font-bold text-slate-500">{index + 1}</span>
-          <input
-            type="url"
-            value={row.linkedin_url}
-            onChange={(e) => onUpdateRow(row.id, "linkedin_url", e.target.value)}
-            placeholder="https://www.linkedin.com/in/recruiter-profile"
-            className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
-          />
-          <input
-            type="text"
-            value={row.additional_note}
-            onChange={(e) => onUpdateRow(row.id, "additional_note", e.target.value)}
-            placeholder="Optional note (e.g. met at AI hackathon)"
-            className="w-72 rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
-          />
-          <select
-            value={row.length || ""}
-            onChange={(e) => onUpdateRow(row.id, "length", e.target.value)}
-            className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3.5 py-2.5 text-xs text-indigo-300 focus:border-indigo-500 focus:outline-none appearance-none cursor-pointer"
+    <ul className="space-y-3">
+      {rows.map((row, i) => {
+        const issue = issues[row.id];
+        const n = i + 1;
+        return (
+          <li
+            key={row.id}
+            className="grid grid-cols-[1.5rem_1fr_auto] items-start gap-x-3 gap-y-2 md:grid-cols-[1.5rem_minmax(0,1.3fr)_minmax(0,1fr)_7.5rem_8.5rem_auto]"
           >
-            <option value="">Default Length</option>
-            <option value="short">Short</option>
-            <option value="medium">Medium</option>
-            <option value="detailed">Detailed</option>
-          </select>
-          <button
-            onClick={() => onRemoveRow(row.id)}
-            disabled={rows.length === 1}
-            className="rounded-xl p-2.5 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 disabled:opacity-30 transition-all"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-    </div>
+            <span className="pt-2.5 text-center text-xs font-bold text-slate-600">{n}</span>
+
+            <div className="col-start-2 min-w-0">
+              <input
+                type="text"
+                inputMode="url"
+                value={row.url}
+                disabled={disabled}
+                onChange={(e) => onUpdate(row.id, { url: e.target.value })}
+                placeholder="linkedin.com/in/jane-doe"
+                aria-label={`LinkedIn profile ${n}`}
+                aria-invalid={!!issue}
+                aria-describedby={issue ? `issue-${row.id}` : undefined}
+                className={`input ${issue ? "input-error" : ""}`}
+              />
+              {issue && (
+                <p id={`issue-${row.id}`} role="alert" className="mt-1 text-[11px] text-rose-400">
+                  {issue}
+                </p>
+              )}
+              <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={!!row.refresh}
+                  disabled={disabled}
+                  onChange={(e) => onUpdate(row.id, { refresh: e.target.checked })}
+                  className="h-3 w-3 accent-indigo-500"
+                />
+                Re-scrape profile (skip cache)
+              </label>
+            </div>
+
+            <input
+              type="text"
+              value={row.note}
+              disabled={disabled}
+              onChange={(e) => onUpdate(row.id, { note: e.target.value })}
+              placeholder="Optional note, e.g. met at AI meetup"
+              aria-label={`Note for profile ${n}`}
+              className="input col-span-2 col-start-2 md:col-span-1 md:col-start-auto"
+            />
+
+            <select
+              value={row.length ?? ""}
+              disabled={disabled}
+              onChange={(e) => onUpdate(row.id, { length: (e.target.value || undefined) as Length | undefined })}
+              aria-label={`Message length for profile ${n}`}
+              className="input col-start-2 cursor-pointer md:col-start-auto"
+            >
+              <option value="">Any length</option>
+              <option value="short">Short</option>
+              <option value="medium">Medium</option>
+              <option value="detailed">Detailed</option>
+            </select>
+
+            <select
+              value={row.tone ?? ""}
+              disabled={disabled}
+              onChange={(e) => onUpdate(row.id, { tone: (e.target.value || undefined) as Tone | undefined })}
+              aria-label={`Tone for profile ${n}`}
+              className="input cursor-pointer"
+            >
+              <option value="">Any tone</option>
+              <option value="professional">Professional</option>
+              <option value="friendly">Friendly</option>
+              <option value="casual">Casual</option>
+              <option value="confident">Confident</option>
+              <option value="neutral">Neutral</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => onRemove(row.id)}
+              disabled={disabled}
+              aria-label={`Remove profile ${n}`}
+              className="btn btn-ghost !px-2.5 hover:!text-rose-400"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

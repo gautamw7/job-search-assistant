@@ -3,8 +3,65 @@
 @tailwind utilities;
 
 @layer base {
+  /* Tell the webview the page is dark, so native controls (select popups,
+     scrollbars, date pickers) don't fall back to a light system theme. */
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
     @apply bg-[#080b12] text-slate-100;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-colors
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#080b12]
+      disabled:cursor-not-allowed disabled:opacity-60 disabled:saturate-50;
+  }
+  .btn-primary {
+    @apply bg-indigo-600 text-white shadow-lg shadow-indigo-950/40 hover:bg-indigo-500;
+  }
+  .btn-secondary {
+    @apply border border-slate-600 bg-slate-800 text-slate-100 hover:border-slate-500 hover:bg-slate-700;
+  }
+  .btn-danger {
+    @apply bg-rose-600/90 text-white hover:bg-rose-500;
+  }
+  /* Low-emphasis, but still clearly a button: visible outline, not bare text. */
+  .btn-ghost {
+    @apply border border-slate-700 bg-slate-900/40 text-slate-300 hover:border-slate-500 hover:bg-slate-800 hover:text-white;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-xs text-slate-200 placeholder:text-slate-600
+      focus:border-indigo-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500;
+  }
+  /* Native selects ignore most styling on Linux/WebKitGTK and render white.
+     Draw our own control + chevron and force dark option rows. */
+  select.input {
+    @apply cursor-pointer appearance-none bg-slate-950 pr-9 text-slate-200;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+  }
+  select.input option {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+  .input-error {
+    @apply border-rose-500/60 focus:border-rose-500 focus-visible:ring-rose-500;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium;
   }
 }
 
@@ -22,4 +79,14 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -9,8 +9,8 @@ import os
 
 import keyring
 
-from app.services.logger import get_logger
-from app.services.paths import SECRETS_FILE
+from app.core.logging import get_logger
+from app.core.settings import SECRETS_FILE
 
 logger = get_logger(__name__)
 
@@ -18,7 +18,7 @@ _SERVICE_ENV = {"brightdata": "BRIGHTDATA_API_KEY", "gemini": "GEMINI_API_KEY"}
 
 
 def _mask_key(key: str) -> str:
-    from app.utils.text import mask_key as _utils_mask
+    from app.infra.text import mask_key as _utils_mask
 
     return _utils_mask(key)
 
@@ -78,18 +78,39 @@ def get_secure_key(service: str) -> str | None:
     return None
 
 
+def _remove_local_secret(service: str) -> None:
+    """Drop a stale plaintext copy once the key lives in the OS keyring."""
+    try:
+        if not SECRETS_FILE.exists():
+            return
+        with open(SECRETS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if service in data:
+            del data[service]
+            if data:
+                with open(SECRETS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4)
+            else:
+                SECRETS_FILE.unlink()
+            logger.info("removed plaintext copy service=%s", service)
+    except Exception as e:
+        logger.warning("failed to remove local secret service=%s err=%s", service, e)
+
+
 def set_secure_key(service: str, api_key: str):
+    """Store in the OS keyring; fall back to a 0600 file only if that fails."""
     env_name = _SERVICE_ENV.get(service)
     try:
         keyring.set_password(f"jobsearchassistant_{service}", "api_key", api_key)
         logger.info("saved key to keyring service=%s", service)
+        _remove_local_secret(service)
     except Exception as e:
         logger.warning(
             "keyring set failed service=%s err=%s, falling back to local storage",
             service,
             e,
         )
-    _set_local_secret(service, api_key)
+        _set_local_secret(service, api_key)
     if env_name:
         os.environ[env_name] = api_key
         logger.info("synced key to os.environ service=%s env=%s", service, env_name)

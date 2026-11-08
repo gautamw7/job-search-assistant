@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.helper import load_config
+from app.infra.config import load_config
 
 
 def test_load_config_valid(tmp_path):

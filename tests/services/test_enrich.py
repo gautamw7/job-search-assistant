@@ -116,7 +116,8 @@ def test_get_enrich_data(mock_save, mock_fetch):
         == "Test User"
     )
 
-@patch("app.services.paths.DATA_DIR")
+
+@patch("app.core.settings.DATA_DIR")
 def test_save_enrich_data_default_path(mock_data_dir, tmp_path):
     mock_data_dir.__truediv__.return_value = tmp_path / "enrich_data.json"
 

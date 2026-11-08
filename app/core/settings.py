@@ -5,6 +5,7 @@ pyproject.toml is at repo root, app/ is at repo root / app.
 """
 
 import os
+import sys
 from pathlib import Path
 
 
@@ -26,8 +27,12 @@ def find_project_root(
     return Path(__file__).resolve().parent.parent.parent
 
 
-# Repo root is where pyproject.toml lives (project root)
-PROJECT_ROOT = find_project_root()
+# Repo root is where pyproject.toml lives (project root).
+# In a PyInstaller bundle, bundled config/ and prompts/ live under sys._MEIPASS.
+if getattr(sys, "frozen", False):
+    PROJECT_ROOT = Path(sys._MEIPASS).resolve()  # type: ignore[attr-defined]
+else:
+    PROJECT_ROOT = find_project_root()
 # Compat alias - REPO_ROOT == PROJECT_ROOT after migration
 REPO_ROOT = PROJECT_ROOT
 APP_DIR = PROJECT_ROOT / "app"
@@ -39,7 +44,13 @@ DATA_DIR = (
 )
 PROMPTS_DIR = PROJECT_ROOT / "prompts"
 CONFIG_DIR = PROJECT_ROOT / "config"
-LOGS_DIR = PROJECT_ROOT / "logs"
+LOG_DIR_ENV = "JOB_SEARCH_LOG_DIR"
+# Logs must live outside the (read-only / ephemeral) bundle in packaged builds.
+LOGS_DIR = (
+    Path(os.environ[LOG_DIR_ENV]).expanduser().resolve()
+    if os.environ.get(LOG_DIR_ENV)
+    else PROJECT_ROOT / "logs"
+)
 
 ENRICH_DATA = DATA_DIR / "enrich_data.json"
 SECRETS_FILE = DATA_DIR / "secrets.json"

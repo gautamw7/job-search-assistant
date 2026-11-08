@@ -1,16 +1,19 @@
-import json
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.schemas import MessageResponse, Target
-from app.services.generator import (
+from app.api.schemas import JobState, MessageResponse, Target
+from app.core.logging import get_logger
+from app.infra.linkedin import normalize_url
+from app.services import jobs
+from app.services.generation import (
+    generate_followup,
     generate_outreach_message,
+    load_generated_messages,
     regenerate_responses,
 )
-from app.services.logger import get_logger
-from app.services.paths import PROJECT_ROOT as ROOT_DIR
+from app.services.generation.service import HistoryNotFoundError
 
 logger = get_logger(__name__)
 
@@ -21,24 +24,36 @@ router = APIRouter(
 )
 
 
-def _generate_for_target(target: Target) -> str | None:
-    """Helper: processes exactly one target by delegating to generator service."""
-    prefs = (
+def _now() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+
+def _prefs(target: Target) -> dict | None:
+    return (
         target.additional_preferences.model_dump(exclude_none=True)
         if target.additional_preferences
         else None
     )
+
+
+def _generate_for_target(target: Target) -> str | None:
+    """Process exactly one target by delegating to the generator service."""
     logger.info(
-        "generating for target url=%s note=%s prefs=%s",
+        "generating for target url=%s note=%s prefs=%s refresh=%s",
         target.linkedin_url,
         bool(target.additional_note),
-        prefs,
+        _prefs(target),
+        target.refresh_profile,
     )
-    result = generate_outreach_message(
-        linkedin_url=target.linkedin_url,
-        user_note=target.additional_note,
-        user_preferences=prefs,
-    )
+    kwargs = {
+        "linkedin_url": target.linkedin_url,
+        "user_note": target.additional_note,
+        "user_preferences": _prefs(target),
+    }
+    if target.refresh_profile:
+        kwargs["refresh_profile"] = True
+    with jobs.url_lock(target.linkedin_url):
+        result = generate_outreach_message(**kwargs)
     logger.info(
         "generation succeeded url=%s len=%s",
         target.linkedin_url,
@@ -47,59 +62,70 @@ def _generate_for_target(target: Target) -> str | None:
     return result
 
 
+def _latest_extras(url: str, message: str | None) -> dict:
+    """Fact-check + hooks saved with the latest generation (if it is this message)."""
+    generations = (load_generated_messages().get(url) or {}).get("generations") or []
+    latest = generations[-1] if generations else {}
+    if not message or latest.get("generated_message") != message:
+        return {}
+    return {
+        "fact_check": latest.get("fact_check"),
+        "shared_background": latest.get("shared_background") or [],
+    }
+
+
+def _target_dicts(targets: list[Target]) -> list[dict]:
+    return [
+        {
+            "linkedin_url": t.linkedin_url,
+            "additional_note": t.additional_note,
+            "additional_preferences": _prefs(t),
+            "refresh_profile": t.refresh_profile,
+        }
+        for t in targets
+    ]
+
+
 @router.post("/batch", response_model=list[MessageResponse])
 def create_messages_batch(targets: list[Target]):
+    """Generate messages for several profiles (blocking). Results keep input order.
+
+    Prefer ``POST /messages/jobs`` for the UI: it reports real progress and can be
+    cancelled. This endpoint remains for simple scripted use.
     """
-    Generate outreach messages for multiple LinkedIn profiles using multithreading (max 3 workers).
-    """
-    logger.info("batch generation start count=%s", len(targets))
-    results = []
-    current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    seen: set[str] = set()
+    unique: list[Target] = []
+    for target in targets:
+        key = target.linkedin_url.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(target)
+    logger.info("batch generation start count=%s unique=%s", len(targets), len(unique))
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        future_to_target = {
-            executor.submit(_generate_for_target, target): target for target in targets
-        }
+    def run(target: Target) -> MessageResponse:
+        try:
+            msg = _generate_for_target(target)
+            if not msg:
+                raise RuntimeError("Generation returned no content.")
+            return MessageResponse(
+                linkedin_url=target.linkedin_url,
+                generated_message=msg,
+                generated_at=_now(),
+                status="success",
+                error=None,
+            )
+        except Exception as e:
+            logger.exception("batch target failed url=%s", target.linkedin_url)
+            return MessageResponse(
+                linkedin_url=target.linkedin_url,
+                generated_message=None,
+                generated_at=None,
+                status="failed",
+                error=str(e) or type(e).__name__,
+            )
 
-        for future in as_completed(future_to_target):
-            target = future_to_target[future]
-            try:
-                msg = future.result()
-                if not msg:
-                    raise RuntimeError("Generation returned no content.")
-                logger.info("batch target success url=%s", target.linkedin_url)
-                results.append(
-                    MessageResponse(
-                        linkedin_url=target.linkedin_url,
-                        generated_message=msg,
-                        generated_at=current_time,
-                        status="success",
-                        error=None,
-                    )
-                )
-            except Exception as e:
-                logger.exception(
-                    "batch target failed url=%s err=%s", target.linkedin_url, e
-                )
-                results.append(
-                    MessageResponse(
-                        linkedin_url=target.linkedin_url,
-                        generated_message=None,
-                        generated_at=None,
-                        status="failed",
-                        error=f"Gemini error: {e!s}",
-                    )
-                )
-
-    # If all targets failed due to model/system errors, bubble up as HTTP 500
-    if results and all(r.status == "failed" for r in results):
-        first_error = results[0].error or "Batch generation failed for all targets."
-        logger.error(
-            "batch all failed count=%s first_error=%s", len(results), first_error
-        )
-        raise HTTPException(
-            status_code=500, detail=f"All batch generations failed: {first_error}"
-        )
+    with ThreadPoolExecutor(max_workers=jobs.MAX_WORKERS) as executor:
+        results = list(executor.map(run, unique))  # map() preserves input order
 
     success = sum(1 for r in results if r.status == "success")
     logger.info(
@@ -113,109 +139,94 @@ def create_messages_batch(targets: list[Target]):
 
 @router.post("/", response_model=MessageResponse)
 def create_message(target: Target):
-    """
-    Generate an outreach message for a single LinkedIn profile.
-    """
+    """Generate an outreach message for a single LinkedIn profile."""
     logger.info("single generation start url=%s", target.linkedin_url)
-    current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     try:
         msg = _generate_for_target(target)
         if not msg:
             raise RuntimeError("Generation returned no content.")
-        logger.info("single generation success url=%s", target.linkedin_url)
         return MessageResponse(
             linkedin_url=target.linkedin_url,
             generated_message=msg,
-            generated_at=current_time,
+            generated_at=_now(),
             status="success",
             error=None,
+            **_latest_extras(target.linkedin_url, msg),
         )
     except Exception as e:
-        logger.exception(
-            "single generation failed url=%s err=%s", target.linkedin_url, e
-        )
-        raise HTTPException(status_code=500, detail=f"Message generation failed: {e!s}")
+        logger.exception("single generation failed url=%s", target.linkedin_url)
+        raise HTTPException(
+            status_code=500, detail=f"Message generation failed: {e!s}"
+        ) from e
+
+
+# ---- background jobs (real progress + cancel) --------------------------------
+
+
+@router.post("/jobs")
+def start_generation_job(targets: list[Target]):
+    if not targets:
+        raise HTTPException(status_code=400, detail="At least one target is required.")
+    return {"job_id": jobs.start_job(_target_dicts(targets))}
+
+
+@router.get("/jobs/{job_id}", response_model=JobState)
+def get_generation_job(job_id: str):
+    state = jobs.get_job(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return state
+
+
+@router.delete("/jobs/{job_id}", response_model=JobState)
+def cancel_generation_job(job_id: str):
+    state = jobs.cancel_job(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return state
+
+
+# ---- history -----------------------------------------------------------------
 
 
 @router.get("/targets", response_model=list[str])
 def get_target_keys():
-    """
-    Retrieve all LinkedIn profile URLs/keys stored in history.
-    """
-    messages_path = ROOT_DIR / "data" / "generated_messages.json"
-    try:
-        with open(
-            messages_path,
-            "r",
-            encoding="utf-8",
-        ) as f:
-            messages = json.load(f)
-        logger.debug("loaded targets count=%s", len(messages))
-    except FileNotFoundError:
-        logger.info("targets history not found path=%s", messages_path)
-        return []
-    except Exception as e:
-        logger.exception("failed to load targets path=%s err=%s", messages_path, e)
-        return []
-
-    return list(messages.keys())
+    """All LinkedIn profile URLs that have generated history."""
+    return list(load_generated_messages().keys())
 
 
 @router.get("/")
 def get_messages(linkedin_url: str | None = None):
-    """
-    Retrieve the latest generated message for a LinkedIn profile,
-    or the entire generation history dictionary if no URL is provided.
-    """
-    messages_path = ROOT_DIR / "data" / "generated_messages.json"
-    try:
-        with open(
-            messages_path,
-            "r",
-            encoding="utf-8",
-        ) as f:
-            messages = json.load(f)
-        logger.debug(
-            "loaded messages url=%s entries=%s", linkedin_url or "all", len(messages)
-        )
-    except FileNotFoundError:
-        logger.info("messages history not found path=%s", messages_path)
-        messages = {}
-    except Exception as e:
-        logger.exception("failed to load messages path=%s err=%s", messages_path, e)
-        messages = {}
+    """Latest message for one profile, or the whole history (without heavy context)."""
+    messages = load_generated_messages()
 
     if linkedin_url is not None:
-        if linkedin_url not in messages:
+        key = linkedin_url if linkedin_url in messages else normalize_url(linkedin_url)
+        if key not in messages:
             logger.warning("messages not found url=%s", linkedin_url)
             raise HTTPException(
-                status_code=404,
-                detail=f"No messages found for {linkedin_url}.",
+                status_code=404, detail=f"No messages found for {linkedin_url}."
             )
-
-        generations = messages[linkedin_url].get("generations", [])
+        generations = messages[key].get("generations", [])
         if not generations:
-            logger.warning("no generations url=%s", linkedin_url)
             raise HTTPException(
-                status_code=404,
-                detail=f"No generations found for {linkedin_url}.",
+                status_code=404, detail=f"No generations found for {linkedin_url}."
             )
-
-        latest_message = generations[-1]
-        logger.debug(
-            "returning latest message url=%s generations=%s",
-            linkedin_url,
-            len(generations),
-        )
+        latest = generations[-1]
         return MessageResponse(
-            linkedin_url=linkedin_url,
-            generated_message=latest_message["generated_message"],
-            generated_at=latest_message["generated_at"],
+            linkedin_url=key,
+            generated_message=latest["generated_message"],
+            generated_at=latest["generated_at"],
             status="success",
             error=None,
         )
 
-    return messages
+    # Older entries stored the full resume/prompt per profile; never ship that.
+    return {
+        url: {k: v for k, v in entry.items() if k != "context"}
+        for url, entry in messages.items()
+        if isinstance(entry, dict)
+    }
 
 
 @router.post("/regenerate")
@@ -229,25 +240,39 @@ def regenerate_message(request: Target):
         response = regenerate_responses(
             linkedin_url=request.linkedin_url,
             additional_note=request.additional_note,
-            additional_preferences=(
-                request.additional_preferences.model_dump(exclude_none=True)
-                if request.additional_preferences
-                else None
-            ),
+            additional_preferences=_prefs(request),
         )
-        logger.info("regenerate success url=%s", request.linkedin_url)
-        return MessageResponse(
-            linkedin_url=request.linkedin_url,
-            generated_message=response.get("generated_message"),
-            generated_at=response.get("generated_at"),
-            status="success",
-            error=None,
-        )
+    except HistoryNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        logger.exception("regenerate failed url=%s err=%s", request.linkedin_url, e)
-        raise HTTPException(
-            status_code=400
-            if "No history found" in str(e) or "No generations found" in str(e)
-            else 500,
-            detail=str(e),
-        )
+        logger.exception("regenerate failed url=%s", request.linkedin_url)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return MessageResponse(
+        linkedin_url=request.linkedin_url,
+        generated_message=response.get("generated_message"),
+        generated_at=response.get("generated_at"),
+        status="success",
+        error=None,
+        fact_check=response.get("fact_check"),
+        shared_background=response.get("shared_background") or [],
+    )
+
+
+@router.post("/followup", response_model=MessageResponse)
+def followup_message(request: Target):
+    """Draft a follow-up for a contact who hasn't replied (saved to history)."""
+    try:
+        record = generate_followup(request.linkedin_url, request.additional_note)
+    except HistoryNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        logger.exception("followup failed url=%s", request.linkedin_url)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    return MessageResponse(
+        linkedin_url=request.linkedin_url,
+        generated_message=record["generated_message"],
+        generated_at=record["generated_at"],
+        status="success",
+        fact_check=record.get("fact_check"),
+        shared_background=record.get("shared_background") or [],
+    )

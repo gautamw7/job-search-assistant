@@ -13,6 +13,9 @@ prompt: |
   USER_COMMUNICATION_STYLE:
   {user_communication_style}
 
+  VERIFIED SHARED BACKGROUND:
+  {shared_background}
+
   EXISTING MESSAGE:
   {last_generated_message}
 

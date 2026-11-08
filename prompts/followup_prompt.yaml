@@ -1,0 +1,35 @@
+name: followup_prompt
+version: 1
+
+prompt: |
+  Write a short follow-up to a LinkedIn outreach message that has not received a reply.
+
+  RECIPIENT PROFILE:
+  {target_content}
+
+  USER RESUME:
+  {user_resume}
+
+  USER COMMUNICATION STYLE:
+  {user_communication_style}
+
+  ORIGINAL MESSAGE (sent {days_since} days ago):
+  {original_message}
+
+  EARLIER FOLLOW-UPS ALREADY SENT:
+  {previous_followups}
+
+  VERIFIED SHARED BACKGROUND:
+  {shared_background}
+
+  USER'S EXTRA INSTRUCTION:
+  {additional_note}
+
+  RULES:
+  - 2 to 4 sentences, clearly shorter than the original.
+  - Do not repeat the original message or earlier follow-ups; add one new, relevant angle
+    (a recent hiring post, a specific skill match, or a shared background item) if available.
+  - Be polite and low-pressure. No guilt-tripping ("just checking if you saw my message").
+  - End with one easy, specific ask.
+  - Do not invent facts. Use only the information above.
+  - Output only the message.

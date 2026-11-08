@@ -1,7 +1,7 @@
 """Central logger with daily log rotation into logs/YYYY/MM/DD/.
 
 Usage:
-    from app.services.logger import get_logger
+    from app.core.logging import get_logger
     logger = get_logger(__name__)
     logger.info("...")
 
@@ -10,7 +10,7 @@ Logs are written to:
     logs/YYYY/MM/DD/error.log (ERROR+)
 Plus console output.
 
-The log directory is resolved relative to project root (one level above services/).
+The log directory is LOGS_DIR (JOB_SEARCH_LOG_DIR env, else <project>/logs).
 Multiple logs per day are stored in the same dated folder; TimedRotatingFileHandler
 rotates at midnight with 14-day retention. Use LOG_LEVEL env to override.
 """
@@ -24,23 +24,16 @@ from pathlib import Path
 
 import yaml
 
-from app.core.settings import find_project_root
+from app.core.settings import CONFIG_DIR, LOGS_DIR
 
-_PROJECT_ROOT = find_project_root(Path(__file__).resolve())
-_DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "config" / "logging.yaml"
+_DEFAULT_CONFIG_PATH = CONFIG_DIR / "logging.yaml"
 _CONFIGURED = False
 
 
 def _get_log_dir() -> Path:
     """Return logs/YYYY/MM/DD path for today (local time)."""
     now = datetime.now()
-    return (
-        _PROJECT_ROOT
-        / "logs"
-        / f"{now.year:04d}"
-        / f"{now.month:02d}"
-        / f"{now.day:02d}"
-    )
+    return LOGS_DIR / f"{now.year:04d}" / f"{now.month:02d}" / f"{now.day:02d}"
 
 
 def _resolve_handlers_filenames(base_log_dir: Path) -> tuple[Path, Path]:
