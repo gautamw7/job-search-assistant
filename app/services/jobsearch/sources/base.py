@@ -13,6 +13,11 @@ class SearchQuery:
     countries: list[str]  # ISO-2 lower case, most preferred first
     max_days_old: int = 30
     remote: str = "any"
+    employment_types: list[str] = field(default_factory=list)
+    experience_levels: list[str] = field(default_factory=list)
+    posted_days: int | None = None  # user's recency choice (capped by max_days_old)
+    salary_min: float | None = None
+    salary_currency: str | None = None
 
 
 @dataclass

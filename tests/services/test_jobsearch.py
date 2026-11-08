@@ -11,6 +11,7 @@ from app.core.settings import DATA_DIR
 from app.infra import db
 from app.services.jobsearch import details, pipeline, ranking, store
 from app.services.jobsearch import profile as profile_svc
+from app.services.jobsearch.preferences import linkedin_params
 from app.services.jobsearch.profile import SearchProfile
 from app.services.jobsearch.sources import (
     AdzunaSource,
@@ -170,8 +171,12 @@ def test_apify_maps_linkedin_fields_and_handles_no_credit():
 
 
 def test_linkedin_search_url_has_filters():
-    url = search_url(["Data Scientist", "ML Engineer"], "de", 30, "remote")
+    query = SearchQuery(
+        titles=["Data Scientist"], countries=["de"], max_days_old=30, remote="remote"
+    )
+    url = search_url(["Data Scientist", "ML Engineer"], "de", linkedin_params(query))
     assert "location=Germany" in url and "f_TPR=r2592000" in url and "f_WT=2" in url
+    assert "f_JT" not in url  # no job-type answers given, so no job-type filter
 
 
 # ---- store / dedupe ------------------------------------------------------------

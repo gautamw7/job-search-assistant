@@ -14,7 +14,9 @@ from app.infra.db import connect
 from app.services import usage
 from app.services.jobsearch import embeddings, ranking, review, store
 from app.services.jobsearch.details import fetch_full_description
+from app.services.jobsearch.preferences import source_notes
 from app.services.jobsearch.profile import (
+    ADZUNA_COUNTRIES,
     SearchProfile,
     confirmed_profile,
     profile_hash,
@@ -164,14 +166,58 @@ def start_search(force: bool = False) -> dict:
     return {"search_id": run["search_id"], "cached": False}
 
 
-def _collect(run: dict, profile: SearchProfile) -> list:
+def build_query(profile: SearchProfile) -> SearchQuery:
     search = usage.get_settings()["search"]
-    query = SearchQuery(
+    return SearchQuery(
         titles=profile.titles[: int(search["max_titles"])],
         countries=profile.countries,
         max_days_old=int(search["max_days_old"]),
         remote=profile.remote,
+        employment_types=list(profile.employment_types),
+        experience_levels=list(profile.experience_levels),
+        posted_days=profile.posted_within_days,
+        salary_min=profile.min_salary.amount if profile.min_salary else None,
+        salary_currency=profile.min_salary.currency if profile.min_salary else None,
     )
+
+
+def preview(profile: SearchProfile) -> dict:
+    """The exact searches a run would make, without calling any source."""
+    from app.services.jobsearch.preferences import (
+        adzuna_params,
+        linkedin_params,
+        source_notes,
+    )
+    from app.services.jobsearch.sources.apify import search_url
+
+    query = build_query(profile)
+    searches = []
+    for country in query.countries:
+        for title in query.titles:
+            searches.append(
+                {
+                    "source": "linkedin",
+                    "country": country,
+                    "title": title,
+                    "url": search_url([title], country, linkedin_params(query)),
+                }
+            )
+            if country in ADZUNA_COUNTRIES:
+                searches.append(
+                    {
+                        "source": "adzuna",
+                        "country": country,
+                        "title": title,
+                        "params": adzuna_params(query, country),
+                    }
+                )
+    return {"searches": searches, "notes": source_notes(query)}
+
+
+def _collect(run: dict, profile: SearchProfile) -> list:
+    search = usage.get_settings()["search"]
+    query = build_query(profile)
+    run["notices"].extend(n for n in source_notes(query) if n not in run["notices"])
     postings = []
     for cls in ALL_SOURCES:
         source = cls()

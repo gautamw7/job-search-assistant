@@ -1,4 +1,7 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.api.schemas import TrackingUpdate
 from app.core.logging import get_logger
@@ -33,3 +36,16 @@ def update_contact(req: TrackingUpdate):
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+class BulkUpdate(BaseModel):
+    linkedin_urls: list[str]
+    status: Literal["drafted", "sent", "replied", "interviewing", "closed"]
+
+
+@router.post("/bulk")
+def bulk_update_contacts(req: BulkUpdate):
+    """e.g. mark every drafted message as sent in one action."""
+    if not req.linkedin_urls:
+        raise HTTPException(status_code=400, detail="No contacts selected.")
+    return tracker.bulk_update(req.linkedin_urls, req.status)

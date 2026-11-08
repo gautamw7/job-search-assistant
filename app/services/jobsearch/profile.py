@@ -102,6 +102,14 @@ class SearchProfile(BaseModel):
     career_direction: str = ""
     clarifications: list[Clarification] = Field(default_factory=list)
     hide_german_required: bool = False
+    # Job-type questionnaire (see preferences.QUESTIONS). Empty list = no filter.
+    employment_types: list[Literal["full_time", "part_time", "contract"]] = Field(
+        default_factory=list
+    )
+    experience_levels: list[
+        Literal["internship", "entry", "associate", "mid_senior", "director"]
+    ] = Field(default_factory=list)
+    posted_within_days: Literal[7, 14, 30] = 30
 
     @field_validator("titles", "skills", mode="before")
     @classmethod
@@ -203,6 +211,10 @@ def suggest(
     ] or ["any"]
     if data.get("remote") not in ("remote", "hybrid", "onsite", "any"):
         data["remote"] = "any"
+    if not data.get("experience_levels"):
+        from app.services.jobsearch.preferences import SENIORITY_TO_EXPERIENCE
+
+        data["experience_levels"] = SENIORITY_TO_EXPERIENCE.get(data["seniority"], [])
     return SearchProfile.model_validate(data), questions
 
 

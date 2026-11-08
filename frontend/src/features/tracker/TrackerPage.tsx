@@ -54,6 +54,24 @@ export function TrackerPage({ tracker, cards, copiedKey, onCopy, onHistoryChange
     );
   }, [tracker.contacts, filter]);
 
+  const toast = useToast();
+  const [markingSent, setMarkingSent] = useState(false);
+  const drafted = counts.drafted ?? 0;
+  const markAllSent = async () => {
+    const urls = tracker.contacts.filter((c) => c.status === "drafted").map((c) => c.linkedin_url);
+    if (!urls.length || !window.confirm(`Mark ${urls.length} drafted message${urls.length === 1 ? "" : "s"} as sent? Follow-up reminders start from today.`)) return;
+    setMarkingSent(true);
+    try {
+      const r = await api.bulkUpdateContacts(urls, "sent");
+      toast.success(`Marked ${r.updated} as sent.`);
+      tracker.refresh();
+    } catch (e) {
+      toast.error(errorMessage(e, "Could not update those contacts."));
+    } finally {
+      setMarkingSent(false);
+    }
+  };
+
   const filters: { id: Filter; label: string }[] = [
     { id: "all", label: "All" },
     { id: "due", label: "Follow-up due" },
@@ -66,9 +84,16 @@ export function TrackerPage({ tracker, cards, copiedKey, onCopy, onHistoryChange
         title="Outreach tracker"
         subtitle={`Mark messages as sent; a follow-up is suggested after ${tracker.followupDays} days without a reply.`}
         actions={
-          <button type="button" className="btn btn-secondary" onClick={tracker.refresh} disabled={tracker.loading}>
-            {tracker.loading ? <Spinner /> : <RefreshCw className="h-4 w-4" aria-hidden />} Refresh
-          </button>
+          <>
+            {drafted > 0 && (
+              <button type="button" className="btn btn-primary" onClick={markAllSent} disabled={markingSent}>
+                {markingSent ? <Spinner /> : <Send className="h-4 w-4" aria-hidden />} Mark {drafted} drafted as sent
+              </button>
+            )}
+            <button type="button" className="btn btn-secondary" onClick={tracker.refresh} disabled={tracker.loading}>
+              {tracker.loading ? <Spinner /> : <RefreshCw className="h-4 w-4" aria-hidden />} Refresh
+            </button>
+          </>
         }
       />
 

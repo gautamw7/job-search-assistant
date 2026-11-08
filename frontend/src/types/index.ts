@@ -163,6 +163,30 @@ export interface SearchProfile {
   career_direction: string;
   clarifications: { question: string; answer: string }[];
   hide_german_required: boolean;
+  employment_types: ("full_time" | "part_time" | "contract")[];
+  experience_levels: ("internship" | "entry" | "associate" | "mid_senior" | "director")[];
+  posted_within_days: 7 | 14 | 30;
+}
+
+export interface QuestionnaireOption {
+  value: string | number;
+  label: string;
+}
+
+export interface QuestionnaireQuestion {
+  id: "employment_types" | "experience_levels" | "remote" | "posted_within_days";
+  label: string;
+  multi: boolean;
+  options: QuestionnaireOption[];
+}
+
+/** One search the profile would run, shown before anything is called. */
+export interface JobSearchPreview {
+  source: "linkedin" | "adzuna";
+  country: string;
+  title: string;
+  url?: string;
+  params?: Record<string, string | number>;
 }
 
 export interface ProfileQuestion {
@@ -176,6 +200,7 @@ export interface JobsMeta {
   language_levels: string[];
   sources: Record<string, boolean>;
   resume_confirmed: boolean;
+  questionnaire: QuestionnaireQuestion[];
 }
 
 export type JobStatus = "new" | "saved" | "applied" | "dismissed";

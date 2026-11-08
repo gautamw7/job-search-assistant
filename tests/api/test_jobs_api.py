@@ -137,3 +137,34 @@ def test_list_filters_status_and_people_at_company():
 def test_search_requires_setup():
     r = client.post("/jobs/search", json={})
     assert r.status_code == 400 and "resume" in r.json()["detail"]
+
+
+def test_questionnaire_is_served_and_preview_shows_real_searches():
+    meta = client.get("/jobs/meta").json()
+    assert [q["id"] for q in meta["questionnaire"]] == [
+        "employment_types",
+        "experience_levels",
+        "remote",
+        "posted_within_days",
+    ]
+    profile = {
+        "titles": ["Data Scientist"],
+        "countries": ["de", "pe"],
+        "employment_types": ["contract"],
+        "experience_levels": ["entry"],
+        "remote": "remote",
+        "posted_within_days": 7,
+    }
+    preview = client.post("/jobs/profile/preview", json=profile).json()
+    linkedin = [s for s in preview["searches"] if s["source"] == "linkedin"]
+    assert (
+        len(linkedin) == 2
+        and "f_JT=C" in linkedin[0]["url"]
+        and "f_E=2" in linkedin[0]["url"]
+    )
+    adzuna = [s for s in preview["searches"] if s["source"] == "adzuna"]
+    assert [s["country"] for s in adzuna] == ["de"]  # Peru isn't an Adzuna country
+    assert (
+        adzuna[0]["params"]["contract"] == 1
+        and adzuna[0]["params"]["max_days_old"] == 7
+    )

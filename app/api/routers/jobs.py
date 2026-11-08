@@ -8,6 +8,7 @@ from app.services import usage
 from app.services.enrich.store import get_profile as get_enriched
 from app.services.jobsearch import pipeline, store
 from app.services.jobsearch import profile as profile_svc
+from app.services.jobsearch.preferences import QUESTIONS
 from app.services.jobsearch.ranking import company_kind, language_gap
 from app.services.structured_resume import confirmed_resume
 from app.services.tracker import list_contacts
@@ -47,6 +48,7 @@ def meta():
         "language_levels": profile_svc.LANGUAGE_LEVELS,
         "sources": pipeline.available_sources(),
         "resume_confirmed": confirmed_resume() is not None,
+        "questionnaire": QUESTIONS,
     }
 
 
@@ -64,6 +66,12 @@ def get_search_profile():
         "confirmed": state["confirmed"],
         "stale": stale,
     }
+
+
+@router.post("/profile/preview")
+def preview_profile(profile: profile_svc.SearchProfile):
+    """The searches this profile would run (no calls to any source)."""
+    return pipeline.preview(profile)
 
 
 @router.post("/profile/suggest")

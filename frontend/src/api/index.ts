@@ -7,6 +7,7 @@ import type {
   HistoryEntry,
   Job,
   JobListing,
+  JobSearchPreview,
   JobsMeta,
   JobStatus,
   ProfileQuestion,
@@ -187,6 +188,12 @@ export const api = {
     http
       .get<{ linkedin_url: string; name: string; position: string; status: string }[]>(`/jobs/${id}/people`)
       .then((r) => r.data),
+
+  resumePdfBlob: () => http.get<Blob>("/resume/pdf", { responseType: "blob" }).then((r) => r.data),
+  previewSearchProfile: (profile: SearchProfile) =>
+    http.post<{ searches: JobSearchPreview[]; notes: string[] }>("/jobs/profile/preview", profile).then((r) => r.data),
+  bulkUpdateContacts: (linkedin_urls: string[], status: ContactStatus) =>
+    http.post<{ updated: number; missing: string[] }>("/tracker/bulk", { linkedin_urls, status }).then((r) => r.data),
 
   // tailored resumes
   compilerStatus: () => http.get<{ available: boolean; compiler: string | null }>("/tailored/compiler").then((r) => r.data),
