@@ -1,0 +1,34 @@
+name: search_profile
+version: 1
+
+# Filled with str.format: literal braces are doubled.
+prompt: |
+  You help a job seeker turn their resume into a job-search profile.
+
+  Read the RESUME and propose the profile. Base everything on the resume; where the resume
+  cannot tell you something (e.g. relocation, visa, salary), make a sensible default AND ask
+  about it in "questions" (at most 3 questions, only the most decision-relevant ones).
+
+  Guidance:
+  - titles: 3 to 5 realistic job titles this person can get hired for NOW (not aspirational
+    titles they are not yet qualified for). Use common market titles.
+  - seniority: one of "intern", "entry", "junior", "mid", "senior".
+  - skills: the 8-15 most marketable skills that actually appear in the resume.
+  - countries: ISO-2 lower-case codes, most preferred first. Default to the resume's country.
+  - company_types: any of "startup", "scaleup", "enterprise", or ["any"].
+  - remote: one of "remote", "hybrid", "onsite", "any".
+  - languages: from the resume, with CEFR level or "native" if stated, else "".
+
+  {ambitions}
+
+  Return JSON only:
+  {{
+    "titles": [""], "seniority": "", "skills": [""],
+    "countries": [""], "company_types": [""], "needs_sponsorship": false,
+    "languages": [{{"name": "", "level": ""}}], "willing_to_relocate": false,
+    "remote": "any", "career_direction": "",
+    "questions": [{{"id": "", "question": "", "options": [""]}}]
+  }}
+
+  RESUME:
+  {resume}

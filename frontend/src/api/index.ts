@@ -6,6 +6,12 @@ import type {
   HiringContact,
   HistoryEntry,
   Job,
+  JobListing,
+  JobsMeta,
+  JobStatus,
+  ProfileQuestion,
+  SearchProfile,
+  SearchRun,
   KeyService,
   Length,
   ProfileCard,
@@ -144,6 +150,41 @@ export const api = {
   batchEnrich: (linkedin_urls: string[]) =>
     http
       .post<Record<string, BatchResult>>("/enrich/batch", { linkedin_urls }, { timeout: 15 * 60 * 1000 })
+      .then((r) => r.data),
+
+  // job search
+  jobsMeta: () => http.get<JobsMeta>("/jobs/meta").then((r) => r.data),
+  async getSearchProfile(): Promise<{ profile: SearchProfile; confirmed: boolean; stale: boolean } | null> {
+    try {
+      return (await http.get("/jobs/profile")).data;
+    } catch (e) {
+      if ((e as { response?: { status?: number } }).response?.status === 404) return null;
+      throw e;
+    }
+  },
+  suggestSearchProfile: (ambitions: string) =>
+    http
+      .post<{ profile: SearchProfile; questions: ProfileQuestion[] }>("/jobs/profile/suggest", { ambitions }, { timeout: 3 * 60 * 1000 })
+      .then((r) => r.data),
+  saveSearchProfile: (profile: SearchProfile) =>
+    http.put<{ profile: SearchProfile; confirmed: boolean; stale: boolean }>("/jobs/profile", profile).then((r) => r.data),
+  startJobSearch: (force = false) =>
+    http.post<{ search_id: string; cached: boolean }>("/jobs/search", { force }).then((r) => r.data),
+  getJobSearch: (id: string) => http.get<SearchRun>(`/jobs/search/${id}`).then((r) => r.data),
+  async latestJobSearch(): Promise<SearchRun | null> {
+    try {
+      return (await http.get<SearchRun>("/jobs/search/latest")).data;
+    } catch {
+      return null;
+    }
+  },
+  listJobs: (params: { status: string; country?: string; startup_only?: boolean; hide_german_required?: boolean }) =>
+    http.get<{ jobs: JobListing[]; total: number }>("/jobs", { params }).then((r) => r.data),
+  setJobStatus: (id: string, status: JobStatus) =>
+    http.post<JobListing>(`/jobs/${id}/status`, { status }).then((r) => r.data),
+  peopleAtCompany: (id: string) =>
+    http
+      .get<{ linkedin_url: string; name: string; position: string; status: string }[]>(`/jobs/${id}/people`)
       .then((r) => r.data),
 
   // api keys

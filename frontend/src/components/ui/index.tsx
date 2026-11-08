@@ -121,9 +121,10 @@ export function Avatar({ text }: { text: string }) {
   );
 }
 
-export function formatCost(cost: number | null | undefined): string {
+export function formatCost(cost: number | null | undefined, freeTierAssumed = false): string {
   if (cost === null || cost === undefined) return "cost unknown";
-  return cost < 0.01 && cost > 0 ? "< $0.01" : `$${cost.toFixed(2)}`;
+  const value = cost < 0.01 && cost > 0 ? "< $0.01" : `$${cost.toFixed(2)}`;
+  return freeTierAssumed ? `${value} (free tier assumed)` : value;
 }
 
 export function formatTokens(n: number): string {

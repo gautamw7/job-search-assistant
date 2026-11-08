@@ -1,8 +1,9 @@
-import { FileText, History, KanbanSquare, Key, PenLine, Send } from "lucide-react";
+import { Briefcase, FileText, History, KanbanSquare, Key, PenLine, Send } from "lucide-react";
 import type { ActiveTab } from "../../types";
 
 const NAV = [
   { id: "generator" as ActiveTab, label: "Generator", icon: Send },
+  { id: "jobs" as ActiveTab, label: "Jobs", icon: Briefcase },
   { id: "tracker" as ActiveTab, label: "Tracker", icon: KanbanSquare },
   { id: "history" as ActiveTab, label: "History", icon: History },
   { id: "resume" as ActiveTab, label: "Resume", icon: FileText },
