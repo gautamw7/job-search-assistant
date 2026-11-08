@@ -1,0 +1,18 @@
+name: resume_fact_check
+version: 1
+
+prompt: |
+  You check a TAILORED resume against the candidate's BASE resume.
+
+  List every claim in the TAILORED resume that the BASE resume does not support: new skills,
+  tools, metrics, responsibilities, results, seniority, or a finished role/degree presented as
+  current. Rewording that keeps the same meaning is fine; do not flag it.
+
+  Return JSON only: {{"issues": [{{"claim": "<exact phrase from the tailored resume>", "reason": "<short reason>"}}]}}
+  Return {{"issues": []}} if everything is supported.
+
+  === BASE RESUME ===
+  {base}
+
+  === TAILORED RESUME ===
+  {tailored}

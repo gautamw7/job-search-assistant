@@ -220,6 +220,23 @@ export interface JobListing {
   via_adzuna: boolean;
 }
 
+export interface TailoredResume {
+  id: string;
+  job_id: string | null;
+  job_title: string;
+  company: string;
+  resume: StructuredResume;
+  changes: string[];
+  keywords: string[];
+  guard_notes: string[];
+  fact_check: FactCheck | null;
+  has_pdf: boolean;
+  pdf_compiled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  compiler?: string;
+}
+
 export interface SearchRun {
   search_id: string;
   status: "running" | "done" | "failed";

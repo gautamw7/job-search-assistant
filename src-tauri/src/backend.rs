@@ -72,7 +72,19 @@ pub fn resolve_sidecar_binary(app: &tauri::AppHandle, project_root: &Path) -> Op
     candidates.into_iter().find(|c| c.is_file())
 }
 
+/// Bundled Tectonic (externalBin, placed next to the executable) for PDF resumes.
+fn bundled_tectonic() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    ["tectonic", "tectonic-x86_64-unknown-linux-gnu"]
+        .iter()
+        .map(|n| exe_dir.join(n))
+        .find(|p| p.is_file())
+}
+
 fn apply_env(cmd: &mut Command, env: &BackendEnv, cwd: &Path, out: Stdio, err: Stdio) {
+    if let Some(tectonic) = bundled_tectonic() {
+        cmd.env("JOB_SEARCH_TECTONIC", tectonic);
+    }
     cmd.current_dir(cwd)
         .env("JOB_SEARCH_DATA_DIR", &env.data_dir)
         .env("JOB_SEARCH_LOG_DIR", &env.log_dir)

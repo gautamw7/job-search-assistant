@@ -1,4 +1,4 @@
-import { Bookmark, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, MessageSquarePlus, Users, X } from "lucide-react";
+import { Bookmark, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, FileText, MessageSquarePlus, Users, X } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../api";
 import { Spinner } from "../../components/ui";
@@ -38,9 +38,10 @@ type Props = {
   job: JobListing;
   onStatus: (id: string, status: JobStatus) => void;
   onOutreach: (job: JobListing) => void;
+  onTailor: (job: JobListing) => void;
 };
 
-export function JobCard({ job, onStatus, onOutreach }: Props) {
+export function JobCard({ job, onStatus, onOutreach, onTailor }: Props) {
   const [open, setOpen] = useState(false);
   const [people, setPeople] = useState<Awaited<ReturnType<typeof api.peopleAtCompany>> | null>(null);
   const [loadingPeople, setLoadingPeople] = useState(false);
@@ -99,6 +100,9 @@ export function JobCard({ job, onStatus, onOutreach }: Props) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 px-4 py-3">
+        <button type="button" className="btn btn-primary !py-1.5" onClick={() => onTailor(job)}>
+          <FileText className="h-3.5 w-3.5" aria-hidden /> Tailor resume
+        </button>
         {job.status !== "saved" && (
           <button type="button" className="btn btn-secondary !py-1.5" onClick={() => onStatus(job.id, "saved")}>
             <Bookmark className="h-3.5 w-3.5" aria-hidden /> Save

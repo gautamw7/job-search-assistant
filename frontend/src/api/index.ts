@@ -19,6 +19,7 @@ import type {
   Tone,
   StructuredResume,
   StructuredResumeState,
+  TailoredResume,
   Tracking,
   UsageSettings,
   UsageSummary,
@@ -186,6 +187,20 @@ export const api = {
     http
       .get<{ linkedin_url: string; name: string; position: string; status: string }[]>(`/jobs/${id}/people`)
       .then((r) => r.data),
+
+  // tailored resumes
+  compilerStatus: () => http.get<{ available: boolean; compiler: string | null }>("/tailored/compiler").then((r) => r.data),
+  listTailored: (jobId: string) => http.get<TailoredResume[]>("/tailored", { params: { job_id: jobId } }).then((r) => r.data),
+  createTailored: (jobId: string) =>
+    http.post<TailoredResume>("/tailored", { job_id: jobId }, { timeout: 5 * 60 * 1000 }).then((r) => r.data),
+  updateTailored: (id: string, resume: StructuredResume, recheck = false) =>
+    http.put<TailoredResume>(`/tailored/${id}`, resume, { params: { recheck }, timeout: 3 * 60 * 1000 }).then((r) => r.data),
+  buildTailoredPdf: (id: string) =>
+    http.post<TailoredResume>(`/tailored/${id}/pdf`, undefined, { timeout: 6 * 60 * 1000 }).then((r) => r.data),
+  tailoredPdfBlob: (id: string) => http.get<Blob>(`/tailored/${id}/pdf`, { responseType: "blob" }).then((r) => r.data),
+  exportTailored: (id: string, kind: "pdf" | "tex") =>
+    http.post<{ path: string }>(`/tailored/${id}/export`, { kind }).then((r) => r.data),
+  deleteTailored: (id: string) => http.delete(`/tailored/${id}`),
 
   // api keys
   async getKey(service: KeyService): Promise<string | null> {

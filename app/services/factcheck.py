@@ -68,3 +68,24 @@ def fact_check(
         return {"status": "error", "issues": [], "error": str(e)[:200]}
 
     return {"status": "flagged" if issues else "pass", "issues": issues}
+
+
+def fact_check_resume(tailored_text: str, base_text: str) -> dict:
+    """Flag claims in a tailored resume that the base resume doesn't support."""
+    if not usage.get_settings().get("fact_check_enabled", True):
+        return {"status": "skipped", "issues": []}
+
+    from app.services.generation.llm import generate_with_fallback
+
+    try:
+        template = load_config(PROMPTS_DIR / "resume_fact_check.yaml")["prompt"]
+        raw = generate_with_fallback(
+            template.format(base=base_text, tailored=tailored_text),
+            json_mode=True,
+            purpose="resume_fact_check",
+        )
+        issues = _parse_issues(raw)
+    except Exception as e:
+        logger.warning("resume fact check failed: %s", e)
+        return {"status": "error", "issues": [], "error": str(e)[:200]}
+    return {"status": "flagged" if issues else "pass", "issues": issues}
