@@ -29,6 +29,75 @@ def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9+#]+", (text or "").casefold()))
 
 
+# Rank scale used for "above your level": 0 intern, 1 entry, 2 associate/junior,
+# 3 mid / mid-senior, 4 senior / lead / staff, 5 manager / director / head.
+_RANK_HINTS = [
+    (
+        5,
+        r"\b(director|vp|vice president|head of|chief|manager|leiter|leitung|teamleiter)\b",
+    ),
+    (4, r"\b(senior|sr\.?|staff|principal|lead|architect|expert|iii|iv)\b"),
+    (3, r"\b(mid|intermediate|ii)\b"),
+    (2, r"\b(junior|jr\.?|associate|assistant)\b"),
+    (1, r"\b(entry|graduate|trainee|fresher|new grad|einstieg)\b"),
+    (0, r"\b(intern|internship|praktik\w*|werkstudent|working student)\b"),
+]
+_BOARD_RANK = {
+    "internship": 0,
+    "entry level": 1,
+    "associate": 2,
+    "mid-senior level": 3,
+    "director": 5,
+}  # "executive" is too vague to trust (job boards use it for entry roles too); the title decides
+_USER_RANK = {
+    "internship": 0,
+    "entry": 1,
+    "associate": 2,
+    "mid_senior": 3,
+    "director": 5,
+}
+ABOVE_SCORE_CAP = 30.0
+ABOVE_YEARS_MARGIN = 1.5
+
+
+def job_rank(job: dict) -> int | None:
+    """Seniority rank of a job: the job board's field when it has one, else the title."""
+    board = str(job.get("seniority") or "").strip().casefold()
+    if board in _BOARD_RANK:
+        return _BOARD_RANK[board]
+    title = str(job.get("title") or "").casefold()
+    for rank, pattern in _RANK_HINTS:
+        if re.search(pattern, title):
+            return rank
+    return None
+
+
+def user_rank(profile: SearchProfile) -> int:
+    """Highest level the user is looking for (their choices, or their years)."""
+    chosen = [_USER_RANK[e] for e in profile.experience_levels if e in _USER_RANK]
+    if chosen:
+        return max(chosen)
+    years = profile.years_experience or 0.0
+    return 1 if years < 2 else (2 if years < 4 else 3)
+
+
+def above_level(job: dict, profile: SearchProfile) -> str | None:
+    """Why this job is above the user's level, or None if it isn't."""
+    from app.services.jobsearch.facts import years_required
+
+    rank = job_rank(job)
+    user = user_rank(profile)
+    if rank is not None and rank - user >= 2:
+        return (
+            "a senior role for your level" if rank < 5 else "a manager or director role"
+        )
+    asked = years_required(f"{job.get('title') or ''}\n{job.get('description') or ''}")
+    have = profile.years_experience or 0.0
+    if asked is not None and asked > have + ABOVE_YEARS_MARGIN:
+        return f"asks for {asked}+ years; you have about {have:g}"
+    return None
+
+
 def job_seniority(job: dict) -> str | None:
     text = f"{job.get('seniority') or ''} {job.get('title') or ''}".casefold()
     for level, pattern in _SENIORITY_HINTS:
@@ -121,19 +190,38 @@ def company_kind(job: dict, max_employees: int) -> str | None:
 
 def score_jobs(
     jobs: list[dict],
-    similarities: dict[str, float],
+    similarities: dict[str, float] | None,
     profile: SearchProfile,
     max_days: int,
     max_employees: int,
 ) -> list[tuple[str, float, dict]]:
-    """(job_id, score 0-100, breakdown) for each job."""
-    sims = [similarities.get(j["id"], 0.0) for j in jobs]
-    lo, hi = (min(sims), max(sims)) if sims else (0.0, 1.0)
+    """(job_id, score 0-100, breakdown) for each job.
+
+    Jobs above the user's level are capped at ABOVE_SCORE_CAP and carry the reason
+    in ``breakdown["above_level"]``.
+
+    ``similarities=None`` means AI matching was unavailable: the similarity weight
+    is shared out across the other factors so scores stay on the same 0-100 scale.
+    """
+    use_similarity = similarities is not None
+    sims_values = (
+        [similarities.get(j["id"], 0.0) for j in jobs] if use_similarity else []
+    )
+    lo, hi = (min(sims_values), max(sims_values)) if sims_values else (0.0, 1.0)
     span = (hi - lo) or 1.0
+    weights = dict(WEIGHTS)
+    if not use_similarity:
+        spare = weights.pop("similarity")
+        share = spare / (sum(weights.values()) or 1.0)
+        weights = {k: w + w * share for k, w in weights.items()}
     scored = []
     for job in jobs:
         breakdown = {
-            "similarity": round((similarities.get(job["id"], lo) - lo) / span, 3),
+            "similarity": (
+                round((similarities.get(job["id"], lo) - lo) / span, 3)
+                if use_similarity
+                else None
+            ),
             "title": title_match(job["title"], profile.titles),
             "skills": skills_match(job["description"], profile.skills),
             "seniority": seniority_fit(job, profile.seniority),
@@ -141,7 +229,15 @@ def score_jobs(
             "startup": startup_fit(job, profile, max_employees),
             "recency": recency(job, max_days),
         }
-        score = 100 * sum(WEIGHTS[k] * v for k, v in breakdown.items())
+        score = 100 * sum(
+            weights[k] * v
+            for k, v in breakdown.items()
+            if v is not None and k in weights
+        )
+        reason = above_level(job, profile)
+        breakdown["above_level"] = reason
+        if reason:
+            score = min(score, ABOVE_SCORE_CAP)
         scored.append((job["id"], round(score, 1), breakdown))
     return scored
 

@@ -8,6 +8,7 @@ from app.services import usage
 from app.services.enrich.store import get_profile as get_enriched
 from app.services.jobsearch import pipeline, store
 from app.services.jobsearch import profile as profile_svc
+from app.services.jobsearch.facts import with_facts
 from app.services.jobsearch.preferences import QUESTIONS
 from app.services.jobsearch.ranking import company_kind, language_gap
 from app.services.structured_resume import confirmed_resume
@@ -61,8 +62,10 @@ def get_search_profile():
     stale = (
         resume is not None and profile_svc.resume_hash(resume) != state["source_hash"]
     )
+    # Profiles saved before years existed show the resume's value, so the form isn't blank.
+    shown = with_facts(state["profile"], resume)
     return {
-        "profile": state["profile"].model_dump(),
+        "profile": shown.model_dump(),
         "confirmed": state["confirmed"],
         "stale": stale,
     }
@@ -131,6 +134,9 @@ def _decorate(
 ) -> dict:
     """Badges the UI needs, computed in one place."""
     review = job.get("review") or {}
+    breakdown = job.get("score_breakdown") or {}
+    job["above_level"] = bool(breakdown.get("above_level"))
+    job["above_level_reason"] = breakdown.get("above_level")
     kind = company_kind(job, max_emp)
     job["company_kind"] = kind or review.get("company_kind") or "unknown"
     job["company_kind_verified"] = kind is not None
@@ -151,10 +157,16 @@ def list_jobs(
     country: str | None = None,
     startup_only: bool = False,
     hide_german_required: bool | None = None,
+    hide_above_level: bool | None = None,
     limit: int = 100,
 ):
     statuses = tuple(s for s in status.split(",") if s in store.STATUSES) or ("new",)
-    profile = profile_svc.confirmed_profile()
+    profile = with_facts(profile_svc.confirmed_profile(), confirmed_resume())
+    hide_above = False
+    if profile:
+        hide_above = (
+            profile.hide_above_level if hide_above_level is None else hide_above_level
+        )
     hide_german = (
         profile.hide_german_required
         if (hide_german_required is None and profile)
@@ -167,6 +179,8 @@ def list_jobs(
         if country and job["country"] != country:
             continue
         if startup_only and job["company_kind"] != "startup":
+            continue
+        if hide_above and job["above_level"]:
             continue
         if hide_german and job["german_required"] == "yes":
             continue

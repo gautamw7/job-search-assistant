@@ -180,7 +180,7 @@ export const api = {
       return null;
     }
   },
-  listJobs: (params: { status: string; country?: string; startup_only?: boolean; hide_german_required?: boolean }) =>
+  listJobs: (params: { status: string; country?: string; startup_only?: boolean; hide_german_required?: boolean; hide_above_level?: boolean }) =>
     http.get<{ jobs: JobListing[]; total: number }>("/jobs", { params }).then((r) => r.data),
   setJobStatus: (id: string, status: JobStatus) =>
     http.post<JobListing>(`/jobs/${id}/status`, { status }).then((r) => r.data),

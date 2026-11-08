@@ -39,7 +39,7 @@ DEFAULT_SETTINGS: dict = {
         "max_titles": 3,
         "max_days_old": 30,
         "adzuna_results_per_query": 50,
-        "apify_results_per_search": 50,
+        "apify_results_per_search": 100,
         "startup_max_employees": 200,
     },
     "fact_check_enabled": True,

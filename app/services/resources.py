@@ -8,6 +8,7 @@ from app.services.resume import (
     convert_pdf_to_markdown,
     get_resume_markdown,
 )
+from app.services.structured_resume import confirmed_resume
 from app.services.user_communication import get_user_communication
 
 logger = get_logger(__name__)
@@ -26,6 +27,12 @@ def format_preferences(preferences) -> str:
 
 
 def _load_resume_markdown(resume_path: str) -> str:
+    """The reviewed structured resume when one is confirmed (what the user edits),
+    otherwise the text converted from the PDF."""
+    structured = confirmed_resume()
+    if structured is not None:
+        logger.info("using the confirmed structured resume")
+        return structured.to_text()
     if check_resume_markdown():
         logger.info("markdown resume exists, loading")
         return get_resume_markdown()

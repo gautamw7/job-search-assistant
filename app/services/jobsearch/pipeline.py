@@ -14,6 +14,7 @@ from app.infra.db import connect
 from app.services import usage
 from app.services.jobsearch import embeddings, ranking, review, store
 from app.services.jobsearch.details import fetch_full_description
+from app.services.jobsearch.facts import with_facts
 from app.services.jobsearch.preferences import source_notes
 from app.services.jobsearch.profile import (
     ADZUNA_COUNTRIES,
@@ -22,6 +23,7 @@ from app.services.jobsearch.profile import (
     profile_hash,
 )
 from app.services.jobsearch.sources import ALL_SOURCES, SearchQuery, SourceError
+from app.services.jobsearch.sources.apify import ApifyLinkedInSource
 from app.services.structured_resume import confirmed_resume
 
 logger = get_logger(__name__)
@@ -166,6 +168,18 @@ def start_search(force: bool = False) -> dict:
     return {"search_id": run["search_id"], "cached": False}
 
 
+SENIOR_TERMS = "senior lead principal staff head director manager architect"
+
+
+def above_level_terms(profile: SearchProfile) -> str | None:
+    """Title words to exclude at the source when the user doesn't want senior roles."""
+    if not profile.hide_above_level:
+        return None
+    if {"mid_senior", "director"} & set(profile.experience_levels):
+        return None
+    return SENIOR_TERMS
+
+
 def build_query(profile: SearchProfile) -> SearchQuery:
     search = usage.get_settings()["search"]
     return SearchQuery(
@@ -178,6 +192,7 @@ def build_query(profile: SearchProfile) -> SearchQuery:
         posted_days=profile.posted_within_days,
         salary_min=profile.min_salary.amount if profile.min_salary else None,
         salary_currency=profile.min_salary.currency if profile.min_salary else None,
+        exclude_terms=above_level_terms(profile),
     )
 
 
@@ -218,6 +233,13 @@ def _collect(run: dict, profile: SearchProfile) -> list:
     search = usage.get_settings()["search"]
     query = build_query(profile)
     run["notices"].extend(n for n in source_notes(query) if n not in run["notices"])
+    needs_linkedin = [c for c in query.countries if c not in ADZUNA_COUNTRIES]
+    if needs_linkedin and not ApifyLinkedInSource().available():
+        names = ", ".join(c.upper() for c in needs_linkedin)
+        run["notices"].append(
+            f"{names} is searched via LinkedIn (Apify), and no Apify token is set. "
+            "Add it in Settings to get those jobs."
+        )
     postings = []
     for cls in ALL_SOURCES:
         source = cls()
@@ -255,6 +277,45 @@ def _candidates(touched: list[str], max_days: int) -> list[str]:
     return list(dict.fromkeys(touched + [r["id"] for r in rows]))
 
 
+def _similarities(
+    run: dict, jobs: list[dict], profile: SearchProfile, resume_text: str
+) -> dict[str, float] | None:
+    """Embedding similarity per job, or None if AI matching is unavailable.
+
+    A failure here must not fail the whole search: ranking falls back to the
+    other factors and the user is told why.
+    """
+    try:
+        model, _dims = embeddings.embedding_config()
+        need = [j for j in jobs if not j["embedding"] or j["embedding_model"] != model]
+        if need:
+            vectors = embeddings.embed_texts(
+                [f"{j['title']} at {j['company']}\n{j['description']}" for j in need]
+            )
+            store.save_embeddings(
+                [
+                    (j["id"], embeddings.to_blob(v))
+                    for j, v in zip(need, vectors, strict=True)
+                ],
+                model,
+            )
+            for j, v in zip(need, vectors, strict=True):
+                j["embedding"] = embeddings.to_blob(v)
+        target = embeddings.embed_texts(
+            [profile.as_text() + "\n" + resume_text[:3000]]
+        )[0]
+        return {
+            j["id"]: embeddings.cosine(target, embeddings.from_blob(j["embedding"]))
+            for j in jobs
+        }
+    except Exception as e:
+        logger.warning("embedding step failed, ranking without similarity: %s", e)
+        run["notices"].append(
+            "AI matching was unavailable, so jobs were ranked by title, skills, level and location."
+        )
+        return None
+
+
 def _run(run: dict, profile: SearchProfile, resume_text: str) -> None:
     try:
         with usage.usage_scope(run["search_id"]):
@@ -269,6 +330,11 @@ def _run(run: dict, profile: SearchProfile, resume_text: str) -> None:
 
 
 def _pipeline(run: dict, profile: SearchProfile, resume_text: str) -> None:
+    from app.services.structured_resume import confirmed_resume
+
+    profile = with_facts(
+        profile, confirmed_resume()
+    )  # years from the resume, not guessed
     settings = usage.get_settings()["search"]
     max_days, max_emp = (
         int(settings["max_days_old"]),
@@ -289,32 +355,14 @@ def _pipeline(run: dict, profile: SearchProfile, resume_text: str) -> None:
 
     _update(run, stage="embedding", message="Comparing jobs with your profile…")
     jobs = store.rows_for_ranking(ids)
-    model, _dims = embeddings.embedding_config()
-    need = [j for j in jobs if not j["embedding"] or j["embedding_model"] != model]
-    if need:
-        vectors = embeddings.embed_texts(
-            [f"{j['title']} at {j['company']}\n{j['description']}" for j in need]
-        )
-        store.save_embeddings(
-            [
-                (j["id"], embeddings.to_blob(v))
-                for j, v in zip(need, vectors, strict=True)
-            ],
-            model,
-        )
-        for j, v in zip(need, vectors, strict=True):
-            j["embedding"] = embeddings.to_blob(v)
-    target = embeddings.embed_texts([profile.as_text() + "\n" + resume_text[:3000]])[0]
-    sims = {
-        j["id"]: embeddings.cosine(target, embeddings.from_blob(j["embedding"]))
-        for j in jobs
-    }
+    sims = _similarities(run, jobs, profile, resume_text)
 
     _update(run, stage="scoring", message="Scoring matches…")
     scored = ranking.score_jobs(jobs, sims, profile, max_days, max_emp)
     store.save_scores(scored)
     scored.sort(key=lambda s: s[1], reverse=True)
-    shortlist = [s for s in scored[:SHORTLIST]]
+    # Above-level jobs are shown (capped) but never spend a paid AI review.
+    shortlist = [s for s in scored[:SHORTLIST] if not s[2].get("above_level")]
     top = shortlist[:REVIEW_TOP]
     run["stats"]["scored"] = len(scored)
 

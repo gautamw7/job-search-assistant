@@ -172,7 +172,7 @@ export function SettingsPage({
       <KeyCard
         service="adzuna"
         title="Adzuna"
-        purpose="Free job listings from many boards (India, Germany and more). Needs both the App ID and the App key."
+        purpose="Free job listings for India. Needs both the App ID and the App key. Other countries are searched via LinkedIn (Apify)."
         help={{ label: "Get free Adzuna keys", href: "https://developer.adzuna.com/signup" }}
         icon={<Search className="h-4 w-4 text-indigo-400" aria-hidden />}
         masked={masked.adzuna}

@@ -4,7 +4,7 @@ import { useToast } from "../../context/ToastContext";
 import { errorMessage } from "../../lib/http";
 import type { JobListing, JobStatus, JobsMeta, ProfileQuestion, SearchProfile, SearchRun } from "../../types";
 
-export type JobFilters = { status: JobStatus; country: string; startupOnly: boolean; hideGerman: boolean };
+export type JobFilters = { status: JobStatus; country: string; startupOnly: boolean; hideGerman: boolean; hideAbove: boolean };
 
 export function useJobs(enabled: boolean) {
   const toast = useToast();
@@ -15,7 +15,7 @@ export function useJobs(enabled: boolean) {
   const [run, setRun] = useState<SearchRun | null>(null);
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
-  const [filters, setFilters] = useState<JobFilters>({ status: "new", country: "", startupOnly: false, hideGerman: false });
+  const [filters, setFilters] = useState<JobFilters>({ status: "new", country: "", startupOnly: false, hideGerman: false, hideAbove: true });
   const pollRef = useRef<number>();
 
   const loadJobs = useCallback(async () => {
@@ -26,6 +26,7 @@ export function useJobs(enabled: boolean) {
         country: filters.country || undefined,
         startup_only: filters.startupOnly || undefined,
         hide_german_required: filters.hideGerman || undefined,
+        hide_above_level: filters.hideAbove,
       });
       setJobs(data.jobs);
     } catch (e) {
@@ -41,6 +42,7 @@ export function useJobs(enabled: boolean) {
     setProfile(p);
     setRun(latest);
     if (p?.profile.hide_german_required) setFilters((f) => ({ ...f, hideGerman: true }));
+    if (p) setFilters((f) => ({ ...f, hideAbove: p.profile.hide_above_level }));
   }, []);
 
   useEffect(() => {

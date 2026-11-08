@@ -19,6 +19,11 @@ def setup_function():
     db._migrated_paths.clear()
 
 
+from app.services.structured_resume import (
+    confirmed_resume as confirmed_resume_obj,
+)
+
+
 def _confirm_resume():
     save_resume(
         StructuredResume.model_validate(
@@ -31,7 +36,8 @@ def _confirm_resume():
 
 def test_meta_and_profile_flow():
     meta = client.get("/jobs/meta").json()
-    assert any(c["code"] == "de" and c["adzuna"] for c in meta["countries"])
+    flags = {c["code"]: c["adzuna"] for c in meta["countries"]}
+    assert flags["in"] is True and flags["de"] is False  # Adzuna is India-only
     assert (
         client.post("/jobs/profile/suggest", json={}).status_code == 400
     )  # resume not confirmed
@@ -149,7 +155,7 @@ def test_questionnaire_is_served_and_preview_shows_real_searches():
     ]
     profile = {
         "titles": ["Data Scientist"],
-        "countries": ["de", "pe"],
+        "countries": ["in", "de"],
         "employment_types": ["contract"],
         "experience_levels": ["entry"],
         "remote": "remote",
@@ -163,8 +169,84 @@ def test_questionnaire_is_served_and_preview_shows_real_searches():
         and "f_E=2" in linkedin[0]["url"]
     )
     adzuna = [s for s in preview["searches"] if s["source"] == "adzuna"]
-    assert [s["country"] for s in adzuna] == ["de"]  # Peru isn't an Adzuna country
+    assert [s["country"] for s in adzuna] == [
+        "in"
+    ]  # Germany is searched via LinkedIn only
     assert (
         adzuna[0]["params"]["contract"] == 1
         and adzuna[0]["params"]["max_days_old"] == 7
     )
+
+
+def test_list_hides_above_level_jobs_by_default_and_can_show_them():
+    _confirm_resume()
+    profile = {
+        "titles": ["Data Scientist"],
+        "countries": ["in"],
+        "experience_levels": ["entry"],
+        "years_experience": 1.2,
+        "hide_above_level": True,
+    }
+    assert client.put("/jobs/profile", json=profile).status_code == 200
+    [easy] = store.upsert_postings(
+        [
+            JobPosting(
+                "adzuna",
+                "e",
+                "Junior Data Scientist",
+                "A",
+                "Pune",
+                "in",
+                "Python",
+                True,
+                "u-e",
+            )
+        ]
+    )
+    [senior] = store.upsert_postings(
+        [
+            JobPosting(
+                "adzuna",
+                "s",
+                "Staff Data Scientist",
+                "B",
+                "Pune",
+                "in",
+                "Python",
+                True,
+                "u-s",
+            )
+        ]
+    )
+    for job_id in (easy, senior):
+        store.save_scores(
+            [
+                (
+                    job_id,
+                    60.0 if job_id == easy else 30.0,
+                    {
+                        "above_level": None
+                        if job_id == easy
+                        else "a senior role for your level"
+                    },
+                )
+            ]
+        )
+    shown = [j["id"] for j in client.get("/jobs").json()["jobs"]]
+    assert easy in shown and senior not in shown
+    everything = client.get("/jobs?hide_above_level=false").json()["jobs"]
+    flagged = {j["id"]: j for j in everything}[senior]
+    assert flagged["above_level"] is True and "senior" in flagged["above_level_reason"]
+
+
+def test_profile_saved_before_years_existed_shows_the_resume_value():
+    _confirm_resume()
+    from app.services.jobsearch import profile as profile_svc
+
+    old = profile_svc.SearchProfile(
+        titles=["Data Scientist"], countries=["in"]
+    )  # years not set
+    profile_svc.save(
+        old, profile_svc.resume_hash(confirmed_resume_obj()), confirmed=True
+    )
+    assert client.get("/jobs/profile").json()["profile"]["years_experience"] is not None

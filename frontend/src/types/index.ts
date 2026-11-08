@@ -166,6 +166,8 @@ export interface SearchProfile {
   employment_types: ("full_time" | "part_time" | "contract")[];
   experience_levels: ("internship" | "entry" | "associate" | "mid_senior" | "director")[];
   posted_within_days: 7 | 14 | 30;
+  years_experience: number | null;
+  hide_above_level: boolean;
 }
 
 export interface QuestionnaireOption {
@@ -243,6 +245,8 @@ export interface JobListing {
   german_gap: boolean;
   sponsorship: "yes" | "no" | "unclear";
   via_adzuna: boolean;
+  above_level: boolean;
+  above_level_reason: string | null;
 }
 
 export interface TailoredResume {
