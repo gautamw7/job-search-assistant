@@ -43,6 +43,7 @@ _OPEN_PATHS = {"/health", "/"}
 from app.api.routers import (
     config,
     enrich,
+    jobs,
     messages,
     personalization,
     resume,
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     app.include_router(messages.router)
     app.include_router(config.router)
     app.include_router(enrich.router)
+    app.include_router(jobs.router)
     app.include_router(tracker.router)
     app.include_router(usage.router)
 

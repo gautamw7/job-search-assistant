@@ -5,8 +5,8 @@ Every BrightData profile fetch and every Gemini call is recorded in
 totalled in memory so a job can report what *that run* consumed.
 
 Prices are not hard-coded (they change); the user enters them in Settings. Until
-they do, costs show as unknown but count-based limits (profiles per month) still
-work.
+they do, usage is assumed to be on the free tier: it costs $0.00 and is reported
+with ``free_tier_assumed`` so the UI can say so. Count-based limits always work.
 """
 
 import threading
@@ -28,8 +28,20 @@ DEFAULT_SETTINGS: dict = {
         "brightdata_per_profile": None,
         "gemini_input_per_million": None,
         "gemini_output_per_million": None,
+        "apify_per_result": None,
     },
-    "budget": {"monthly_usd": None, "monthly_profiles": None},
+    "budget": {
+        "monthly_usd": None,
+        "monthly_profiles": None,
+        "monthly_apify_results": None,
+    },
+    "search": {
+        "max_titles": 3,
+        "max_days_old": 30,
+        "adzuna_results_per_query": 50,
+        "apify_results_per_search": 50,
+        "startup_max_employees": 200,
+    },
     "fact_check_enabled": True,
 }
 
@@ -56,6 +68,9 @@ def _empty_totals() -> dict:
         "gemini_calls": 0,
         "input_tokens": 0,
         "output_tokens": 0,
+        "embedding_calls": 0,
+        "adzuna_calls": 0,
+        "apify_results": 0,
     }
 
 
@@ -68,6 +83,7 @@ def get_settings() -> dict:
     merged = {
         "pricing": {**DEFAULT_SETTINGS["pricing"], **(stored.get("pricing") or {})},
         "budget": {**DEFAULT_SETTINGS["budget"], **(stored.get("budget") or {})},
+        "search": {**DEFAULT_SETTINGS["search"], **(stored.get("search") or {})},
         "fact_check_enabled": stored.get(
             "fact_check_enabled", DEFAULT_SETTINGS["fact_check_enabled"]
         ),
@@ -86,7 +102,7 @@ def _clean_number(value):
 
 def save_settings(patch: dict) -> dict:
     current = get_settings()
-    for section in ("pricing", "budget"):
+    for section in ("pricing", "budget", "search"):
         for key, value in (patch.get(section) or {}).items():
             if key not in current[section]:
                 raise ValueError(f"Unknown setting {section}.{key}")
@@ -111,12 +127,19 @@ def usage_scope(name: str):
 
 
 def _add(totals: dict, event: dict) -> None:
-    if event["kind"] == "brightdata":
+    kind = event["kind"]
+    if kind == "brightdata":
         totals["brightdata_profiles"] += event.get("profiles", 0)
-    else:
+    elif kind == "gemini":
         totals["gemini_calls"] += 1
         totals["input_tokens"] += event.get("input_tokens", 0)
         totals["output_tokens"] += event.get("output_tokens", 0)
+    elif kind == "embedding":
+        totals["embedding_calls"] += 1
+    elif kind == "adzuna":
+        totals["adzuna_calls"] += event.get("calls", 1)
+    elif kind == "apify":
+        totals["apify_results"] += event.get("results", 0)
 
 
 def _record(event: dict) -> None:
@@ -141,6 +164,18 @@ def record_brightdata(profiles: int) -> None:
         _record({"kind": "brightdata", "profiles": int(profiles)})
 
 
+def record_embedding(model: str, texts: int) -> None:
+    _record({"kind": "embedding", "model": model, "texts": int(texts)})
+
+
+def record_adzuna(calls: int = 1) -> None:
+    _record({"kind": "adzuna", "calls": int(calls)})
+
+
+def record_apify(results: int) -> None:
+    _record({"kind": "apify", "results": int(results)})
+
+
 def record_gemini(
     model: str, input_tokens: int, output_tokens: int, purpose: str
 ) -> None:
@@ -158,26 +193,38 @@ def record_gemini(
 # ---- reporting ------------------------------------------------------------------
 
 
-def estimate_cost(totals: dict, pricing: dict) -> float | None:
-    """Estimated USD, or None if a price needed for the usage is not configured."""
+def _cost_parts(totals: dict, pricing: dict) -> tuple[float, bool]:
+    """(USD cost, whether a used service had no price and was assumed free)."""
+    assumed = False
+
+    def price(key: str) -> float:
+        nonlocal assumed
+        value = pricing.get(key)
+        if value is None:
+            assumed = True
+            return 0.0
+        return value
+
     cost = 0.0
-    if totals["brightdata_profiles"]:
-        if pricing.get("brightdata_per_profile") is None:
-            return None
-        cost += totals["brightdata_profiles"] * pricing["brightdata_per_profile"]
-    if totals["gemini_calls"]:
-        pin = pricing.get("gemini_input_per_million")
-        pout = pricing.get("gemini_output_per_million")
-        if pin is None or pout is None:
-            return None
-        cost += (
-            totals["input_tokens"] / 1e6 * pin + totals["output_tokens"] / 1e6 * pout
-        )
-    return round(cost, 4)
+    if totals.get("brightdata_profiles"):
+        cost += totals["brightdata_profiles"] * price("brightdata_per_profile")
+    if totals.get("gemini_calls"):
+        cost += totals["input_tokens"] / 1e6 * price("gemini_input_per_million")
+        cost += totals["output_tokens"] / 1e6 * price("gemini_output_per_million")
+    if totals.get("apify_results"):
+        cost += totals["apify_results"] * price("apify_per_result")
+    # Adzuna and Gemini embeddings are free on their standard tiers.
+    return round(cost, 4), assumed
+
+
+def estimate_cost(totals: dict, pricing: dict) -> float:
+    """Estimated USD; services without a configured price are assumed free."""
+    return _cost_parts(totals, pricing)[0]
 
 
 def _with_cost(totals: dict, pricing: dict) -> dict:
-    return {**totals, "estimated_cost": estimate_cost(totals, pricing)}
+    cost, assumed = _cost_parts(totals, pricing)
+    return {**totals, "estimated_cost": cost, "free_tier_assumed": assumed}
 
 
 def _events() -> list[dict]:
@@ -211,16 +258,23 @@ def summary() -> dict:
         "today": today,
         "settings": settings,
         "pricing_configured": all(v is not None for v in pricing.values()),
+        "unpriced_services": [k for k, v in pricing.items() if v is None],
     }
 
 
-def check_budget(profiles: int = 0) -> None:
+def check_budget(profiles: int = 0, apify_results: int = 0) -> None:
     """Raise before spending if this would break a monthly limit."""
     settings = get_settings()
     budget = settings["budget"]
-    if budget["monthly_profiles"] is None and budget["monthly_usd"] is None:
+    if all(v is None for v in budget.values()):
         return
     month = _totals_since(datetime.now().strftime("%Y-%m"))
+    apify_limit = budget.get("monthly_apify_results")
+    if apify_limit is not None and month["apify_results"] + apify_results > apify_limit:
+        raise BudgetExceededError(
+            f"Monthly Apify limit reached ({int(apify_limit)} job results). "
+            "Raise it in Settings → Usage & budget."
+        )
     limit = budget["monthly_profiles"]
     if limit is not None and month["brightdata_profiles"] + profiles > limit:
         raise BudgetExceededError(
@@ -229,12 +283,9 @@ def check_budget(profiles: int = 0) -> None:
         )
     usd = budget["monthly_usd"]
     if usd is not None:
+        # Unpriced services count as $0 (free tier assumed).
         cost = estimate_cost(month, settings["pricing"])
-        if cost is None:
-            logger.warning(
-                "monthly USD budget set but prices are missing; not enforced"
-            )
-        elif cost >= usd:
+        if cost >= usd:
             raise BudgetExceededError(
                 f"Monthly budget of ${usd:g} reached (estimated ${cost:.2f} spent). "
                 "Raise it in Settings → Usage & budget."

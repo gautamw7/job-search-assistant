@@ -41,7 +41,12 @@ export interface UsageTotals {
   gemini_calls: number;
   input_tokens: number;
   output_tokens: number;
+  embedding_calls?: number;
+  adzuna_calls?: number;
+  apify_results?: number;
   estimated_cost: number | null;
+  /** Some used service has no price set, so it was counted as free. */
+  free_tier_assumed?: boolean;
 }
 
 export interface Job {
@@ -105,8 +110,9 @@ export interface UsageSettings {
     brightdata_per_profile: number | null;
     gemini_input_per_million: number | null;
     gemini_output_per_million: number | null;
+    apify_per_result: number | null;
   };
-  budget: { monthly_usd: number | null; monthly_profiles: number | null };
+  budget: { monthly_usd: number | null; monthly_profiles: number | null; monthly_apify_results: number | null };
   fact_check_enabled: boolean;
 }
 
@@ -138,7 +144,94 @@ export interface ProfileDetails {
   discovery: { people_also_viewed: Array<Record<string, string>> } | null;
 }
 
-export type ActiveTab = "generator" | "tracker" | "history" | "resume" | "style" | "config";
+export type ActiveTab = "generator" | "jobs" | "tracker" | "history" | "resume" | "style" | "config";
+
+export type Seniority = "intern" | "entry" | "junior" | "mid" | "senior";
+export type CompanyType = "startup" | "scaleup" | "enterprise" | "any";
+
+export interface SearchProfile {
+  titles: string[];
+  seniority: Seniority;
+  skills: string[];
+  countries: string[];
+  company_types: CompanyType[];
+  needs_sponsorship: boolean;
+  languages: { name: string; level: string }[];
+  willing_to_relocate: boolean;
+  remote: "remote" | "hybrid" | "onsite" | "any";
+  min_salary: { amount: number; currency: string } | null;
+  career_direction: string;
+  clarifications: { question: string; answer: string }[];
+  hide_german_required: boolean;
+}
+
+export interface ProfileQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface JobsMeta {
+  countries: { code: string; name: string; adzuna: boolean }[];
+  language_levels: string[];
+  sources: Record<string, boolean>;
+  resume_confirmed: boolean;
+}
+
+export type JobStatus = "new" | "saved" | "applied" | "dismissed";
+
+export interface JobReview {
+  fit: number | null;
+  reasons: string[];
+  missing_skills: string[];
+  german_required: "yes" | "no" | "unclear";
+  german_level: string;
+  sponsorship: "yes" | "no" | "unclear";
+  company_kind: string;
+}
+
+export interface JobListing {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  country: string;
+  description: string;
+  description_is_snippet: boolean;
+  url: string;
+  sources: { source: string; url: string }[];
+  posted_at: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  remote: string | null;
+  seniority: string | null;
+  company_size: number | null;
+  applicants: number | null;
+  status: JobStatus;
+  score: number | null;
+  score_breakdown: Record<string, number | null | Record<string, number>> | null;
+  review: JobReview | null;
+  company_kind: string;
+  company_kind_verified: boolean;
+  german_required: "yes" | "no" | "unclear";
+  german_gap: boolean;
+  sponsorship: "yes" | "no" | "unclear";
+  via_adzuna: boolean;
+}
+
+export interface SearchRun {
+  search_id: string;
+  status: "running" | "done" | "failed";
+  stage: string;
+  message: string;
+  started_at: string;
+  finished_at: string | null;
+  stats: Record<string, number>;
+  notices: string[];
+  error: string | null;
+  usage?: UsageTotals;
+}
 export type KeyService = "brightdata" | "gemini" | "adzuna" | "apify";
 
 export interface StructuredResume {

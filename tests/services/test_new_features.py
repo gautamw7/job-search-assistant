@@ -263,9 +263,10 @@ def test_usage_is_recorded_scoped_and_costed():
     assert usage.summary()["month"]["brightdata_profiles"] == 3
 
 
-def test_cost_unknown_until_prices_set_and_budget_blocks_spending():
+def test_free_tier_assumed_until_prices_set_and_budget_blocks_spending():
     usage.record_brightdata(5)
-    assert usage.summary()["month"]["estimated_cost"] is None
+    month = usage.summary()["month"]
+    assert month["estimated_cost"] == 0.0 and month["free_tier_assumed"] is True
     usage.save_settings({"budget": {"monthly_profiles": 6}})
     usage.check_budget(profiles=1)  # exactly at the limit is fine
     with pytest.raises(usage.BudgetExceededError):

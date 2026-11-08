@@ -13,11 +13,13 @@ import { StylePage } from "../features/profile/StylePage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { useKeys } from "../features/settings/useKeys";
 import { TrackerPage } from "../features/tracker/TrackerPage";
+import { JobsPage } from "../features/jobs/JobsPage";
+import { useJobs } from "../features/jobs/useJobs";
 import { useTracker } from "../features/tracker/useTracker";
 import { useToast } from "../context/ToastContext";
 import type { ActiveTab } from "../types";
 
-const TABS: ActiveTab[] = ["generator", "tracker", "history", "resume", "style", "config"];
+const TABS: ActiveTab[] = ["generator", "jobs", "tracker", "history", "resume", "style", "config"];
 
 function tabFromHash(): ActiveTab {
   const h = window.location.hash.replace("#", "") as ActiveTab;
@@ -43,6 +45,8 @@ export function Workspace({ online }: { online: boolean }) {
   const keys = useKeys(true);
   const history = useHistory(true);
   const tracker = useTracker(true);
+  const [jobsVisited, setJobsVisited] = useState(false);
+  const jobs = useJobs(jobsVisited);
   const toast = useToast();
   const onHistoryChanged = () => {
     history.refresh();
@@ -61,6 +65,11 @@ export function Workspace({ online }: { online: boolean }) {
   useEffect(() => {
     if (tab !== "config") keys.refresh();
     if (tab === "tracker") tracker.refresh();
+    if (tab === "jobs") {
+      // Load lazily on first visit; refresh setup (resume/keys may have changed) on return.
+      if (jobsVisited) jobs.refreshSetup().catch(() => undefined);
+      setJobsVisited(true);
+    }
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!setup.loaded) {
@@ -110,6 +119,17 @@ export function Workspace({ online }: { online: boolean }) {
             missingKeys={keys.missing}
             onOpenSettings={() => setTab("config")}
             onMarkSent={markSent}
+          />
+        )}
+        {tab === "jobs" && (
+          <JobsPage
+            jobs={jobs}
+            onOpenTab={setTab}
+            onOutreach={(job) => {
+              gen.addNoteRow(`About the ${job.title} role at ${job.company}: ${job.url}`);
+              setTab("generator");
+              toast.info("Added a row with the role as a note. Paste the LinkedIn profile of someone at the company.");
+            }}
           />
         )}
         {tab === "tracker" && (

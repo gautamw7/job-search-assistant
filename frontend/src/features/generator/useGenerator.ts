@@ -158,6 +158,11 @@ export function useGenerator(onFinished: () => void) {
     [],
   );
   const clearRows = useCallback(() => setRows([newRow()]), []);
+  /** Add a row with a pre-filled note (e.g. "about the ML Engineer role at X"). */
+  const addNoteRow = useCallback((note: string) => {
+    const kept = rowsRef.current.filter((r) => r.url.trim() || r.note.trim());
+    setRows([...kept, { ...newRow(), note }]);
+  }, []);
 
   /** Paste any text containing profile links; returns how many new rows were added. */
   const addUrls = useCallback((text: string): number => {
@@ -270,6 +275,7 @@ export function useGenerator(onFinished: () => void) {
     addRow,
     removeRow,
     clearRows,
+    addNoteRow,
     addUrls,
     job,
     cards,

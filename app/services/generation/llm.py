@@ -1,5 +1,7 @@
 """Internal: Gemini model fallback chain (single implementation)."""
 
+import time
+
 from google import genai
 from google.genai import types
 
@@ -13,6 +15,8 @@ logger = get_logger(__name__)
 
 REQUEST_TIMEOUT_MS = 90_000
 _FATAL_STATUS = {401, 403}  # a bad key will not get better on another model
+_RATE_LIMITED = 429
+RATE_LIMIT_WAITS_S = (2, 5, 10)  # free tier: brief waits before trying the next model
 
 
 class LLMError(RuntimeError):
@@ -76,7 +80,7 @@ def generate_with_fallback(
             kwargs = {"model": model, "contents": prompt}
             if config is not None:
                 kwargs["config"] = config
-            response = client.models.generate_content(**kwargs)
+            response = _call_with_rate_limit_retry(client, kwargs)
             _record_usage(model, response, purpose)
             text = getattr(response, "text", None)
             if isinstance(text, str) and text.strip():
@@ -92,9 +96,37 @@ def generate_with_fallback(
                     "Gemini rejected the API key. Check it in Settings."
                 ) from e
 
+    if is_rate_limit(last_error):
+        raise LLMError(
+            "Gemini free-tier limit reached. Try again in a minute, or add billing "
+            "in Google AI Studio."
+        ) from last_error
     raise LLMError(
         f"All Gemini models failed. Last error: {last_error}"
     ) from last_error
+
+
+def _call_with_rate_limit_retry(client, kwargs):
+    """Retry the same model briefly on 429 (free-tier rate limit) before giving up."""
+    for wait in (*RATE_LIMIT_WAITS_S, None):
+        try:
+            return client.models.generate_content(**kwargs)
+        except Exception as e:
+            if getattr(e, "code", None) != _RATE_LIMITED or wait is None:
+                raise
+            logger.warning(
+                "rate limited model=%s, retrying in %ss", kwargs["model"], wait
+            )
+            time.sleep(wait)
+    raise AssertionError("unreachable")
+
+
+def is_rate_limit(error: BaseException | None) -> bool:
+    while error is not None:
+        if getattr(error, "code", None) == _RATE_LIMITED:
+            return True
+        error = error.__cause__
+    return False
 
 
 def regenerate_with_fallback(prompt: str, system_prompt: str | None = None) -> str:
