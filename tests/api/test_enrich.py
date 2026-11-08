@@ -111,9 +111,7 @@ def test_enrich_legacy_string_format(mock_load):
     assert "re-enrich required" in response.json()["detail"]
 
 
-@patch("app.api.routers.enrich.DATA_DIR")
-def test_enrich_store_not_found(mock_data_dir):
-    mock_data_dir.__truediv__.return_value.exists.return_value = False
+def test_enrich_store_not_found():
     # Force _load_enriched_store to see missing file
     # Patch exists check directly
     with patch(

@@ -3,10 +3,9 @@ from pydantic import BaseModel
 
 from app.api.schemas import BatchEnrichRequest
 from app.core.logging import get_logger
-from app.core.settings import DATA_DIR
 from app.infra.linkedin import is_linkedin_profile_url, normalize_url
 from app.services.enrich import enrich_many, get_enrich_data, hiring_contacts
-from app.services.enrich.store import load_enrichment_store
+from app.services.enrich.store import load_all_profiles
 
 logger = get_logger(__name__)
 
@@ -49,17 +48,7 @@ class EnrichedProfile(BaseModel):
 
 
 def _load_enriched_store() -> dict:
-    file_path = DATA_DIR / "enrich_data.json"
-    if not file_path.exists():
-        logger.warning("enrich store not found path=%s", file_path)
-        raise HTTPException(status_code=404, detail="Enrich store not found")
-    try:
-        return load_enrichment_store(file_path)
-    except ValueError as e:
-        logger.exception("failed to load enrich store err=%s", e)
-        raise HTTPException(
-            status_code=500, detail="Failed to load enrich store"
-        ) from e
+    return load_all_profiles()
 
 
 def load_enriched_profile(linkedin_url: str) -> dict:
@@ -80,13 +69,7 @@ def load_enriched_profile(linkedin_url: str) -> dict:
 @router.get("/cards")
 def get_all_cards():
     """Card info for every enriched profile, in one call (used by the history UI)."""
-    try:
-        store = load_enrichment_store(DATA_DIR / "enrich_data.json")
-    except ValueError as e:
-        logger.exception("failed to load enrich store err=%s", e)
-        raise HTTPException(
-            status_code=500, detail="Failed to load enrich store"
-        ) from e
+    store = load_all_profiles()
     return {
         url: entry["card_info"]
         for url, entry in store.items()

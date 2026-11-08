@@ -117,20 +117,17 @@ def test_get_enrich_data(mock_save, mock_fetch):
     )
 
 
-@patch("app.core.settings.DATA_DIR")
-def test_save_enrich_data_default_path(mock_data_dir, tmp_path):
-    mock_data_dir.__truediv__.return_value = tmp_path / "enrich_data.json"
+def test_save_enrich_data_default_path_uses_sqlite():
+    """With no explicit path, profiles go to the database, not a JSON file."""
+    from app.core.settings import ENRICH_DATA
+    from app.services.enrich.store import load_all_profiles
 
-    save_enrich_data({"url1": "content1"})
+    save_enrich_data({"url1": {"card_info": {"name": "One"}}})
+    save_enrich_data({"url2": {"card_info": {"name": "Two"}}})
+    save_enrich_data({"url1": {"card_info": {"name": "One v2"}}})  # replace
 
-    save_enrich_data({"url2": "content2"})
-
-    output_file = tmp_path / "enrich_data.json"
-
-    with open(output_file, "r", encoding="utf-8") as f:
-        loaded = json.load(f)
-
-    assert loaded == {
-        "url1": "content1",
-        "url2": "content2",
+    assert load_all_profiles() == {
+        "url1": {"card_info": {"name": "One v2"}},
+        "url2": {"card_info": {"name": "Two"}},
     }
+    assert not ENRICH_DATA.exists()

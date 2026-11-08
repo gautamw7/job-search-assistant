@@ -4,38 +4,22 @@ Recover enrich_data.json for all missing URLs using enrich.py helpers.
 Single-threaded, skip existing dict entries, append via save_enrich_data.
 """
 
-import json
 import time
 
 from app.core.logging import get_logger
-from app.core.settings import DATA_DIR
 from app.services.enrich.fetcher import fetch_enrich_data
 from app.services.enrich.processor import process_enrich_data
-from app.services.enrich.store import save_enrich_data
+from app.services.enrich.store import load_all_profiles, save_enrich_data
+from app.services.generation import load_generated_messages
 from app.services.secrets import get_brightdata_key
 
 logger = get_logger(__name__)
 
 
 def main():
-    gen_path = DATA_DIR / "generated_messages.json"
-    enrich_path = DATA_DIR / "enrich_data.json"
-
-    gen_data = {}
-    if gen_path.exists():
-        try:
-            gen_data = json.loads(gen_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.warning(
-                "failed to load generated_messages path=%s err=%s", gen_path, e
-            )
-
-    enrich_data = {}
-    if enrich_path.exists():
-        try:
-            enrich_data = json.loads(enrich_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.warning("failed to load enrich_data path=%s err=%s", enrich_path, e)
+    # History and the profile cache live in SQLite now (phase 4).
+    gen_data = load_generated_messages()
+    enrich_data = load_all_profiles()
 
     all_urls = sorted(set(gen_data.keys()) | set(enrich_data.keys()))
     logger.info(
@@ -100,12 +84,7 @@ def main():
     logger.info(
         "recover done success=%s failed=%s failed_list=%s", success, len(failed), failed
     )
-    # Final count
-    try:
-        final = json.loads(enrich_path.read_text(encoding="utf-8"))
-        logger.info("final enrich_data entries=%s", len(final))
-    except Exception as e:
-        raise ValueError("failed to load final enrich_data.json %s", e)
+    logger.info("final cached profiles=%s", len(load_all_profiles()))
     return 0
 
 

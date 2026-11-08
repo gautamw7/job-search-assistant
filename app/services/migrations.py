@@ -94,3 +94,11 @@ def run_all() -> None:
         migrate()
     except Exception:
         logger.exception("database schema migration failed")
+        return
+    # Move any remaining JSON stores into SQLite (files are kept as backups).
+    from app.services.legacy_import import absorb_legacy_json
+
+    try:
+        absorb_legacy_json()
+    except Exception:
+        logger.exception("importing legacy JSON data failed; files left in place")

@@ -8,9 +8,10 @@ from datetime import datetime, timedelta
 
 from app.core.logging import get_logger
 from app.services.generation.store import (
+    get_entry,
     history_lock,
     load_generated_messages,
-    save_generated_messages,
+    set_tracking,
 )
 
 logger = get_logger(__name__)
@@ -74,8 +75,7 @@ def update_tracking(
     if status is not None and status not in STATUSES:
         raise ValueError(f"status must be one of {', '.join(STATUSES)}")
     with history_lock():
-        messages = load_generated_messages()
-        entry = messages.get(linkedin_url)
+        entry = get_entry(linkedin_url)
         if not isinstance(entry, dict):
             raise ContactNotFoundError(f"No contact found for {linkedin_url}")
         tracking = get_tracking(entry)
@@ -96,8 +96,7 @@ def update_tracking(
                 tracking["status"] = "sent"
                 tracking["sent_at"] = tracking["sent_at"] or now
         tracking["updated_at"] = now
-        entry["tracking"] = tracking
-        save_generated_messages(messages)
+        set_tracking(linkedin_url, tracking)
     logger.info("tracking updated url=%s status=%s", linkedin_url, tracking["status"])
     return tracking
 

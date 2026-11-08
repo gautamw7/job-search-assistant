@@ -2,6 +2,12 @@
 
 Agreed in a design session on 2026-11-08. Delivered in four phases, one branch each.
 
+**Status (2026-11-08):** all four phases implemented and tested —
+`feat/jobs-phase1-foundation`, `feat/jobs-phase2-search`,
+`feat/jobs-phase3-tailored-resume`, `feat/jobs-phase4-sqlite-data` (each branched
+from the previous). Not yet exercised against live Adzuna/Apify accounts; the Apify
+actor's input fields (`urls`, `count`) should be confirmed on the first real run.
+
 ## Who it is for
 Works from any resume; defaults are derived from it and editable. The target user's
 situation is first-class: India + Germany, entry level, data/ML, startups preferred,

@@ -25,3 +25,14 @@ def _cleanup_sandbox():
     import shutil
 
     shutil.rmtree(_SANDBOX, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_database():
+    """Every test starts with an empty SQLite database (data is no longer in JSON)."""
+    from app.infra import db
+
+    for suffix in ("", "-wal", "-shm"):
+        (db.db_path().parent / f"{db.DB_FILE}{suffix}").unlink(missing_ok=True)
+    db._migrated_paths.clear()
+    yield
