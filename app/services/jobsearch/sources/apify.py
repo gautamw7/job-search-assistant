@@ -11,6 +11,7 @@ import requests
 
 from app.core.logging import get_logger
 from app.services import usage
+from app.services.jobsearch.preferences import linkedin_params
 from app.services.jobsearch.profile import COUNTRY_NAMES
 from app.services.jobsearch.sources.base import (
     JobPosting,
@@ -25,7 +26,6 @@ logger = get_logger(__name__)
 DEFAULT_ACTOR = "curious_coder~linkedin-jobs-scraper"
 RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
 SYNC_TIMEOUT_S = 280  # the sync endpoint gives up at 300 s
-REMOTE_FILTER = {"onsite": "1", "remote": "2", "hybrid": "3"}  # LinkedIn f_WT values
 
 
 def _first(item: dict, *keys, default=None):
@@ -45,15 +45,13 @@ def _to_int(value) -> int | None:
     return None
 
 
-def search_url(titles: list[str], country: str, max_days_old: int, remote: str) -> str:
+def search_url(titles: list[str], country: str, extra: dict) -> str:
     params = {
         "keywords": " OR ".join(f'"{t}"' for t in titles),
         "location": COUNTRY_NAMES.get(country, country.upper()),
-        "f_TPR": f"r{max_days_old * 86400}",
         "sortBy": "R",
+        **extra,
     }
-    if remote in REMOTE_FILTER:
-        params["f_WT"] = REMOTE_FILTER[remote]
     return "https://www.linkedin.com/jobs/search/?" + urlencode(params)
 
 
@@ -111,8 +109,7 @@ class ApifyLinkedInSource(JobSource):
         usage.check_budget(apify_results=max_results)
         per_country = max(1, max_results // len(query.countries))
         urls = [
-            search_url(query.titles, c, query.max_days_old, query.remote)
-            for c in query.countries
+            search_url(query.titles, c, linkedin_params(query)) for c in query.countries
         ]
         payload = {
             "urls": urls,

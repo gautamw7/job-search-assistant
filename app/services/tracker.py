@@ -140,3 +140,15 @@ def list_contacts() -> list[dict]:
             }
         )
     return contacts
+
+
+def bulk_update(urls: list[str], status: str) -> dict:
+    """Set the same status on many contacts. Returns counts and any URLs not found."""
+    updated, missing = 0, []
+    for url in dict.fromkeys(urls):
+        try:
+            update_tracking(url, status=status)
+            updated += 1
+        except ContactNotFoundError:
+            missing.append(url)
+    return {"updated": updated, "missing": missing}

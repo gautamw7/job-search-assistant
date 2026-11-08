@@ -2,6 +2,7 @@ import asyncio
 import os
 
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse
 
 from app.core.logging import get_logger
 from app.core.settings import DATA_DIR, RESUME_PDF
@@ -31,6 +32,14 @@ def get_resume():
         logger.info("resume not found")
         raise HTTPException(status_code=404, detail="Resume not found.")
     return Response(content=get_resume_markdown(), media_type="text/markdown")
+
+
+@router.get("/pdf")
+def get_resume_pdf():
+    """The uploaded PDF itself (for in-app preview)."""
+    if not RESUME_PDF.exists():
+        raise HTTPException(status_code=404, detail="No resume PDF uploaded yet.")
+    return FileResponse(RESUME_PDF, media_type="application/pdf", filename="resume.pdf")
 
 
 @router.post("/")

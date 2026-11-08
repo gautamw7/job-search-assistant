@@ -5,6 +5,7 @@ import requests
 
 from app.core.logging import get_logger
 from app.services import usage
+from app.services.jobsearch.preferences import CURRENCY, adzuna_params
 from app.services.jobsearch.profile import ADZUNA_COUNTRIES
 from app.services.jobsearch.sources.base import (
     JobPosting,
@@ -18,27 +19,6 @@ logger = get_logger(__name__)
 
 API = "https://api.adzuna.com/v1/api/jobs/{country}/search/1"
 TIMEOUT = (10, 30)
-CURRENCY = {
-    "de": "EUR",
-    "at": "EUR",
-    "fr": "EUR",
-    "es": "EUR",
-    "it": "EUR",
-    "nl": "EUR",
-    "be": "EUR",
-    "in": "INR",
-    "gb": "GBP",
-    "us": "USD",
-    "ca": "CAD",
-    "au": "AUD",
-    "ch": "CHF",
-    "pl": "PLN",
-    "sg": "SGD",
-    "nz": "NZD",
-    "za": "ZAR",
-    "br": "BRL",
-    "mx": "MXN",
-}
 
 
 def _to_posting(item: dict, country: str) -> JobPosting:
@@ -83,10 +63,10 @@ class AdzunaSource(JobSource):
                     "app_id": app_id,
                     "app_key": app_key,
                     "what_phrase": title,
-                    "max_days_old": query.max_days_old,
                     "results_per_page": results_per_query,
                     "sort_by": "relevance",
                     "content-type": "application/json",
+                    **adzuna_params(query, country),
                 }
                 try:
                     resp = requests.get(

@@ -1,6 +1,10 @@
 import { ArrowDown, ArrowUp, HelpCircle, Plus, Save, Trash2, Wand2, X } from "lucide-react";
 import { useState } from "react";
+import { api } from "../../api";
+import { useToast } from "../../context/ToastContext";
+import { errorMessage } from "../../lib/http";
 import { Spinner } from "../../components/ui";
+import type { JobSearchPreview } from "../../types";
 import type { CompanyType, JobsMeta, ProfileQuestion, SearchProfile, Seniority } from "../../types";
 
 type Props = {
@@ -30,6 +34,40 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
   );
   const [addCountry, setAddCountry] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<{ searches: JobSearchPreview[]; notes: string[] } | null>(null);
+  const toast = useToast();
+
+  const current = (id: string): unknown => (p as unknown as Record<string, unknown>)[id];
+  const setField = (id: string, value: unknown) => setP((prev) => ({ ...prev, [id]: value }));
+  /** Single-choice questions replace the value; multi-choice ones toggle membership. */
+  const choose = (id: string, multi: boolean, value: string | number) => {
+    if (!multi) return setField(id, value);
+    const list = (current(id) as (string | number)[]) ?? [];
+    setField(id, list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+    setPreview(null);
+  };
+  const isChosen = (id: string, multi: boolean, value: string | number) =>
+    multi ? ((current(id) as (string | number)[]) ?? []).includes(value) : current(id) === value;
+
+  const profileFromForm = (): SearchProfile => ({
+    ...p,
+    titles: fromCsv(titles).slice(0, 5),
+    skills: fromCsv(skills),
+    languages: p.languages.filter((l) => l.name.trim()),
+    clarifications: allQuestions.map((q) => ({ question: q, answer: answers[q] ?? "" })).filter((c) => c.answer.trim()),
+  });
+
+  const previewSearches = async () => {
+    setPreviewing(true);
+    try {
+      setPreview(await api.previewSearchProfile(profileFromForm()));
+    } catch (e) {
+      toast.error(errorMessage(e, "Could not build the search preview."));
+    } finally {
+      setPreviewing(false);
+    }
+  };
   const set = <K extends keyof SearchProfile>(k: K, v: SearchProfile[K]) => setP((prev) => ({ ...prev, [k]: v }));
   const countryName = (code: string) => meta.countries.find((c) => c.code === code)?.name ?? code.toUpperCase();
   const allQuestions = [
@@ -193,6 +231,33 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
         </div>
       </fieldset>
 
+      <fieldset className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+        <legend className="px-1 text-xs font-semibold text-slate-200">Job preferences</legend>
+        <p className="text-[11px] text-slate-500">
+          These become the filters for each source. Adzuna and LinkedIn support different filters, so the preview shows what each one will get.
+        </p>
+        {meta.questionnaire.map((q) => (
+          <div key={q.id} className="space-y-2">
+            <p className="text-xs text-slate-300">
+              {q.label} {q.multi && <span className="text-slate-500">(pick any)</span>}
+            </p>
+            <div className="flex flex-wrap gap-2" role={q.multi ? "group" : "radiogroup"} aria-label={q.label}>
+              {q.options.map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  onClick={() => choose(q.id, q.multi, o.value)}
+                  aria-pressed={isChosen(q.id, q.multi, o.value)}
+                  className={`btn !py-1 ${isChosen(q.id, q.multi, o.value) ? "btn-primary" : "btn-ghost"}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </fieldset>
+
       <fieldset className="space-y-2">
         <legend className={label}>Company type</legend>
         <div className="flex flex-wrap gap-2">
@@ -261,7 +326,31 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
         </label>
       </div>
 
-      <div className="flex justify-end">
+      {preview && (
+        <section className="space-y-3 rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 text-xs" aria-label="Search preview">
+          <p className="font-semibold text-sky-200">Each run will make {preview.searches.length} search{preview.searches.length === 1 ? "" : "es"}:</p>
+          <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+            {preview.searches.map((s, i) => (
+              <li key={i} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2">
+                <span className="font-medium text-slate-200">
+                  {s.source === "adzuna" ? "Adzuna" : "LinkedIn"} · {s.country.toUpperCase()} · {s.title}
+                </span>
+                <p className="mt-0.5 break-all font-mono text-[10px] text-slate-500">
+                  {s.source === "linkedin" ? s.url : Object.entries(s.params ?? {}).map(([k, v]) => `${k}=${v}`).join("  ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {preview.notes.map((n) => (
+            <p key={n} className="text-amber-200">• {n}</p>
+          ))}
+        </section>
+      )}
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <button type="button" className="btn btn-secondary" onClick={previewSearches} disabled={previewing || !titles.trim() || !p.countries.length}>
+          {previewing && <Spinner />} Preview searches
+        </button>
         <button type="submit" className="btn btn-primary !px-5 !py-2.5" disabled={saving || !titles.trim() || !p.countries.length}>
           {saving ? <Spinner /> : <Save className="h-4 w-4" aria-hidden />} Save profile
         </button>
