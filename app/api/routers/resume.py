@@ -31,7 +31,11 @@ def get_resume():
     if not check_resume_markdown():
         logger.info("resume not found")
         raise HTTPException(status_code=404, detail="Resume not found.")
-    return Response(content=get_resume_markdown(), media_type="text/markdown")
+    return Response(
+        content=get_resume_markdown(),
+        media_type="text/markdown",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/pdf")
@@ -39,7 +43,14 @@ def get_resume_pdf():
     """The uploaded PDF itself (for in-app preview)."""
     if not RESUME_PDF.exists():
         raise HTTPException(status_code=404, detail="No resume PDF uploaded yet.")
-    return FileResponse(RESUME_PDF, media_type="application/pdf", filename="resume.pdf")
+    # no-store: a replaced PDF must never be served from a browser's HTTP cache.
+    return FileResponse(
+        RESUME_PDF,
+        media_type="application/pdf",
+        filename="resume.pdf",
+        content_disposition_type="inline",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.post("/")

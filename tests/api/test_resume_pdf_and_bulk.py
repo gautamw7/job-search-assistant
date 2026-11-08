@@ -51,3 +51,22 @@ def test_bulk_mark_drafted_as_sent():
         ).status_code
         == 400
     )
+
+
+def test_replaced_resume_is_never_served_from_cache():
+    """A browser reuses a cached response when it has Last-Modified and no
+    Cache-Control, so the preview kept showing the old PDF after a replace."""
+    RESUME_PDF.parent.mkdir(parents=True, exist_ok=True)
+    RESUME_PDF.write_bytes(b"%PDF-1.4 first version")
+    first = client.get("/resume/pdf")
+    assert first.headers["cache-control"] == "no-store"
+    assert first.headers["content-disposition"].startswith("inline")
+    RESUME_PDF.write_bytes(b"%PDF-1.4 second version")
+    assert b"second version" in client.get("/resume/pdf").content
+    from app.core.settings import RESUME_MD
+
+    RESUME_MD.parent.mkdir(parents=True, exist_ok=True)
+    RESUME_MD.write_text("# Alex\nexperience", encoding="utf-8")
+    assert client.get("/resume/").headers["cache-control"] == "no-store"
+    RESUME_MD.unlink()
+    RESUME_PDF.unlink()
