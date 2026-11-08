@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFil
 
 from app.core.logging import get_logger
 from app.core.settings import DATA_DIR, RESUME_PDF
+from app.services import structured_resume as structured
 from app.services.resume import (
     check_resume_markdown,
     get_resume_markdown,
@@ -97,3 +98,61 @@ async def save_resume_markdown(request: Request):
         raise HTTPException(status_code=500, detail="Failed to save markdown.") from e
     logger.info("resume markdown saved len=%s", len(markdown_text))
     return {"message": "Resume markdown saved successfully."}
+
+
+# ---- structured base resume (source of truth for tailoring) --------------------
+
+
+def _structured_payload(state: dict | None) -> dict:
+    if not state:
+        raise HTTPException(
+            status_code=404, detail="Structured resume not created yet."
+        )
+    current_hash = (
+        structured.markdown_hash(get_resume_markdown())
+        if check_resume_markdown()
+        else None
+    )
+    return {
+        "resume": state["resume"].model_dump(),
+        "confirmed": state["confirmed"],
+        "updated_at": state["updated_at"],
+        # The PDF/Markdown changed since this was built: offer to rebuild it.
+        "stale": current_hash is not None and current_hash != state["source_hash"],
+    }
+
+
+@router.get("/structured")
+def get_structured_resume():
+    return _structured_payload(structured.load())
+
+
+@router.post("/structured/convert")
+def convert_structured_resume():
+    """Build (or rebuild) the structured resume from the current Markdown. Unconfirmed."""
+    if not check_resume_markdown():
+        raise HTTPException(status_code=400, detail="Upload your resume first.")
+    markdown = get_resume_markdown()
+    try:
+        resume = structured.convert_markdown(markdown)
+    except Exception as e:
+        logger.exception("structured resume conversion failed")
+        raise HTTPException(
+            status_code=502, detail=f"Could not structure the resume: {e}"
+        ) from e
+    return _structured_payload(
+        structured.save(resume, structured.markdown_hash(markdown), confirmed=False)
+    )
+
+
+@router.put("/structured")
+def save_structured_resume(resume: structured.StructuredResume, confirm: bool = True):
+    """Save the user's reviewed/edited version (confirmed by default)."""
+    if not resume.contact.name and not resume.experience and not resume.education:
+        raise HTTPException(status_code=400, detail="The resume looks empty.")
+    source = (
+        structured.markdown_hash(get_resume_markdown())
+        if check_resume_markdown()
+        else ""
+    )
+    return _structured_payload(structured.save(resume, source, confirmed=confirm))

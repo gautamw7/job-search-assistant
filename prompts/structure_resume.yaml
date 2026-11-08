@@ -1,0 +1,29 @@
+name: structure_resume
+version: 1
+
+# Filled with str.format: literal braces are doubled.
+prompt: |
+  Convert the RESUME below into structured JSON. It was extracted from a PDF, so it may
+  contain stray symbols (e.g. "�" in place of icons), broken line wraps and odd bolding.
+
+  RULES
+  - Copy facts exactly. Never add, infer, embellish or summarize content that is not there.
+  - Keep each bullet's wording; only fix broken line wraps and remove stray symbols.
+  - Dates: copy as written (e.g. "Feb 2026", "2022", "Present"). Use "" if absent.
+  - Put each item in the most fitting section; skills grouped by the resume's own categories.
+  - If a field is unknown, use "" or [] — never null.
+
+  Return JSON only with exactly this shape:
+  {{
+    "contact": {{"name": "", "email": "", "phone": "", "location": "", "links": [""]}},
+    "summary": "",
+    "education": [{{"institution": "", "degree": "", "field": "", "location": "", "start": "", "end": "", "grade": "", "highlights": [""]}}],
+    "experience": [{{"title": "", "company": "", "location": "", "start": "", "end": "", "bullets": [""]}}],
+    "projects": [{{"name": "", "tech": [""], "link": "", "bullets": [""]}}],
+    "skills": [{{"category": "", "items": [""]}}],
+    "certifications": [""],
+    "languages": [{{"name": "", "level": ""}}]
+  }}
+
+  RESUME:
+  {resume}

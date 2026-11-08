@@ -126,3 +126,12 @@ def get_gemini_key() -> str | None:
 
 def mask_key(key: str) -> str:
     return _mask_key(key)
+
+
+def get_adzuna_credentials() -> tuple[str, str] | None:
+    app_id, app_key = get_secure_key("adzuna_app_id"), get_secure_key("adzuna_app_key")
+    return (app_id, app_key) if app_id and app_key else None
+
+
+def get_apify_token() -> str | None:
+    return get_secure_key("apify")

@@ -87,3 +87,10 @@ def run_all() -> None:
         normalize_keys()
     except Exception:
         logger.exception("startup migration failed; data left unchanged")
+    # Surface SQLite schema problems at startup rather than on first use.
+    from app.infra.db import migrate
+
+    try:
+        migrate()
+    except Exception:
+        logger.exception("database schema migration failed")
