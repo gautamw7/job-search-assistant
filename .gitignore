@@ -112,3 +112,10 @@ data/*.bak-*
 data/*.corrupt-*
 data/*.sqlite*
 data/*.db
+
+# Bundled build tools (large binaries, fetched by make)
+binaries/tectonic-*
+# Generated per-user files
+data/tailored/
+data/exports/
+data/tools/

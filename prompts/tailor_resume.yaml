@@ -1,0 +1,38 @@
+name: tailor_resume
+version: 1
+
+# Filled with str.format: literal braces are doubled.
+prompt: |
+  Tailor the candidate's BASE RESUME for the JOB below.
+
+  You may ONLY:
+  - select: drop items or bullets that are irrelevant to this job;
+  - reorder: put the most relevant experience, projects, bullets and skills first;
+  - reword: rephrase existing bullets/summary to use the job's vocabulary, as long as the
+    underlying fact is already in the base resume.
+
+  You must NEVER:
+  - add skills, tools, technologies, employers, projects, certifications or languages that
+    are not in the base resume;
+  - add or change numbers, metrics, dates, job titles, company names or schools;
+  - claim seniority, ownership or results the base resume does not state;
+  - turn a finished role or degree into a current one.
+
+  Keep every experience/project/education item's identifying fields (title, company,
+  name, institution, dates) exactly as in the base resume. A summary may be written only
+  from facts in the base resume (2-3 lines). Keep it to one page worth of content.
+
+  Return JSON only:
+  {{
+    "resume": <the tailored resume, same JSON shape as the base resume>,
+    "changes": ["short description of each meaningful change"],
+    "keywords": ["job keywords you emphasised that are backed by the base resume"]
+  }}
+
+  JOB: {job_title} at {company}
+  {job_description}
+
+  CANDIDATE GOAL: {career_direction}
+
+  BASE RESUME (JSON):
+  {base_resume}

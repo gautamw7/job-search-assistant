@@ -47,6 +47,7 @@ from app.api.routers import (
     messages,
     personalization,
     resume,
+    tailor,
     tracker,
     usage,
     user_communication,
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(config.router)
     app.include_router(enrich.router)
     app.include_router(jobs.router)
+    app.include_router(tailor.router)
     app.include_router(tracker.router)
     app.include_router(usage.router)
 

@@ -4,6 +4,7 @@ import { EmptyState, PageHeader, Spinner, formatCost } from "../../components/ui
 import type { JobListing, JobStatus } from "../../types";
 import { JobCard } from "./JobCard";
 import { SearchProfileForm } from "./SearchProfileForm";
+import { TailorView } from "./TailorView";
 import type { useJobs } from "./useJobs";
 
 const STAGE_LABEL: Record<string, string> = {
@@ -31,6 +32,7 @@ type Props = {
 export function JobsPage({ jobs: j, onOpenTab, onOutreach }: Props) {
   const [ambitions, setAmbitions] = useState("");
   const [editing, setEditing] = useState(false);
+  const [tailoring, setTailoring] = useState<JobListing | null>(null);
 
   if (!j.meta || j.profile === undefined) {
     return (
@@ -109,6 +111,8 @@ export function JobsPage({ jobs: j, onOpenTab, onOutreach }: Props) {
       </div>
     );
   }
+
+  if (tailoring) return <TailorView job={tailoring} onBack={() => setTailoring(null)} />;
 
   const profile = j.profile!.profile;
   const run = j.run;
@@ -210,7 +214,7 @@ export function JobsPage({ jobs: j, onOpenTab, onOutreach }: Props) {
       ) : (
         <div className="space-y-3">
           {j.jobs.map((job) => (
-            <JobCard key={job.id} job={job} onStatus={j.setStatus} onOutreach={onOutreach} />
+            <JobCard key={job.id} job={job} onStatus={j.setStatus} onOutreach={onOutreach} onTailor={setTailoring} />
           ))}
         </div>
       )}
