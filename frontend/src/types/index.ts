@@ -139,4 +139,31 @@ export interface ProfileDetails {
 }
 
 export type ActiveTab = "generator" | "tracker" | "history" | "resume" | "style" | "config";
-export type KeyService = "brightdata" | "gemini";
+export type KeyService = "brightdata" | "gemini" | "adzuna" | "apify";
+
+export interface StructuredResume {
+  contact: { name: string; email: string; phone: string; location: string; links: string[] };
+  summary: string;
+  education: {
+    institution: string;
+    degree: string;
+    field: string;
+    location: string;
+    start: string;
+    end: string;
+    grade: string;
+    highlights: string[];
+  }[];
+  experience: { title: string; company: string; location: string; start: string; end: string; bullets: string[] }[];
+  projects: { name: string; tech: string[]; link: string; bullets: string[] }[];
+  skills: { category: string; items: string[] }[];
+  certifications: string[];
+  languages: { name: string; level: string }[];
+}
+
+export interface StructuredResumeState {
+  resume: StructuredResume;
+  confirmed: boolean;
+  updated_at: string;
+  stale: boolean;
+}

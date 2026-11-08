@@ -1,7 +1,7 @@
 import requests
 from fastapi import APIRouter, HTTPException
 
-from app.api.schemas import APIKeyRequest
+from app.api.schemas import AdzunaKeyRequest, APIKeyRequest
 from app.core.logging import get_logger
 from app.services.secrets import (
     get_secure_key as _secrets_get,
@@ -196,3 +196,110 @@ def test_stored_gemini_credentials():
         )
     logger.info("stored gemini credentials valid")
     return {"message": "Gemini API key is valid and working."}
+
+
+# ---- job sources: Adzuna (app id + key) and Apify (token) ----------------------
+
+
+def test_adzuna_connection(app_id: str, app_key: str) -> bool:
+    """True if verified, False if the network check could not run."""
+    if not app_id or not app_key:
+        raise HTTPException(status_code=400, detail="App ID and key are both required.")
+    try:
+        response = requests.get(
+            "https://api.adzuna.com/v1/api/jobs/gb/search/1",
+            params={"app_id": app_id, "app_key": app_key, "results_per_page": 1},
+            timeout=8,
+        )
+    except Exception as e:
+        logger.warning("adzuna connection test network error: %s", e)
+        return False
+    if response.status_code in (400, 401, 403):
+        raise HTTPException(status_code=400, detail="Invalid Adzuna app ID or key.")
+    return True
+
+
+def test_apify_connection(token: str) -> bool:
+    if not token or len(token) < 5:
+        raise HTTPException(status_code=400, detail="Invalid API key format.")
+    try:
+        response = requests.get(
+            "https://api.apify.com/v2/users/me",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8,
+        )
+    except Exception as e:
+        logger.warning("apify connection test network error: %s", e)
+        return False
+    if response.status_code in (401, 403):
+        raise HTTPException(status_code=400, detail="Invalid Apify API token.")
+    return True
+
+
+def _stored_message(label: str, verified: bool) -> dict:
+    if verified is False:
+        return {
+            "message": f"{label} credentials saved, but could not be verified (network unreachable).",
+            "verified": False,
+        }
+    return {"message": f"{label} credentials stored successfully.", "verified": True}
+
+
+@router.post("/adzuna")
+def store_adzuna_credentials(req: AdzunaKeyRequest):
+    app_id, app_key = req.app_id.strip(), req.app_key.strip()
+    verified = test_adzuna_connection(app_id, app_key)
+    set_secure_key("adzuna_app_id", app_id)
+    set_secure_key("adzuna_app_key", app_key)
+    return _stored_message("Adzuna", verified)
+
+
+@router.get("/adzuna")
+def get_adzuna_credentials():
+    app_id, app_key = get_secure_key("adzuna_app_id"), get_secure_key("adzuna_app_key")
+    if not app_id or not app_key:
+        raise HTTPException(status_code=404, detail="Credentials not found.")
+    masked = f"{_mask_key(app_id)} / {_mask_key(app_key)}"
+    return {"masked": masked, "exists": True, "api_key": masked}
+
+
+@router.post("/adzuna/test")
+def test_stored_adzuna_credentials():
+    app_id, app_key = get_secure_key("adzuna_app_id"), get_secure_key("adzuna_app_key")
+    if not app_id or not app_key:
+        raise HTTPException(status_code=404, detail="Credentials not found.")
+    if test_adzuna_connection(app_id, app_key) is False:
+        raise HTTPException(
+            status_code=503, detail="Could not reach Adzuna to verify the key."
+        )
+    return {"message": "Adzuna credentials are valid and working."}
+
+
+@router.post("/apify")
+def store_apify_credentials(req: APIKeyRequest):
+    token = req.api_key.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="API key is required.")
+    verified = test_apify_connection(token)
+    set_secure_key("apify", token)
+    return _stored_message("Apify", verified)
+
+
+@router.get("/apify")
+def get_apify_credentials():
+    token = get_secure_key("apify")
+    if not token:
+        raise HTTPException(status_code=404, detail="Credentials not found.")
+    return {"masked": _mask_key(token), "exists": True, "api_key": _mask_key(token)}
+
+
+@router.post("/apify/test")
+def test_stored_apify_credentials():
+    token = get_secure_key("apify")
+    if not token:
+        raise HTTPException(status_code=404, detail="Credentials not found.")
+    if test_apify_connection(token) is False:
+        raise HTTPException(
+            status_code=503, detail="Could not reach Apify to verify the token."
+        )
+    return {"message": "Apify token is valid and working."}

@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { CopyButton, EmptyState, PageHeader, Spinner } from "../../components/ui";
 import { useToast } from "../../context/ToastContext";
 import { errorMessage } from "../../lib/http";
+import { StructuredResumePanel } from "./StructuredResumePanel";
 
 type Props = {
   markdown: string | null;
@@ -69,12 +70,14 @@ export function ResumePage({ markdown, copiedKey, onCopy, onChanged }: Props) {
         }
       />
 
+      <StructuredResumePanel key={markdown ?? "none"} hasResume={!!markdown} />
+
       {!markdown ? (
         <EmptyState icon={<FileText className="h-6 w-6" />} title="No resume yet" body="Upload a PDF to get started." />
       ) : (
         <section className="card space-y-4 p-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-200">{editing ? "Editing resume" : "Parsed resume"}</h3>
+            <h3 className="text-sm font-semibold text-slate-200">{editing ? "Editing resume text" : "Resume text (from your PDF)"}</h3>
             <div className="flex items-center gap-2">
               {editing ? (
                 <>

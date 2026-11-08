@@ -12,6 +12,11 @@ class APIKeyRequest(BaseModel):
     api_key: str
 
 
+class AdzunaKeyRequest(BaseModel):
+    app_id: str
+    app_key: str
+
+
 class MessagePreferences(BaseModel):
     length: Literal["short", "medium", "detailed"] | None = None
     tone: (

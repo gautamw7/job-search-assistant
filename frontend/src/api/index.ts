@@ -11,6 +11,8 @@ import type {
   ProfileCard,
   ProfileDetails,
   Tone,
+  StructuredResume,
+  StructuredResumeState,
   Tracking,
   UsageSettings,
   UsageSummary,
@@ -57,6 +59,20 @@ export const api = {
     return http.post("/resume/", body, { headers: { "Content-Type": "multipart/form-data" } });
   },
   saveResumeMarkdown: (raw_markdown: string) => http.post("/resume/markdown", { raw_markdown }),
+  async getStructuredResume(): Promise<StructuredResumeState | null> {
+    try {
+      return (await http.get<StructuredResumeState>("/resume/structured")).data;
+    } catch (e) {
+      if ((e as { response?: { status?: number } }).response?.status === 404) return null;
+      throw e;
+    }
+  },
+  convertStructuredResume: () =>
+    http
+      .post<StructuredResumeState>("/resume/structured/convert", undefined, { timeout: 3 * 60 * 1000 })
+      .then((r) => r.data),
+  saveStructuredResume: (resume: StructuredResume) =>
+    http.put<StructuredResumeState>("/resume/structured", resume).then((r) => r.data),
 
   // communication style
   getStyle: () =>
@@ -139,9 +155,10 @@ export const api = {
       return null;
     }
   },
-  saveKey: (service: KeyService, api_key: string) =>
+  /** Most services take {api_key}; Adzuna takes {app_id, app_key}. */
+  saveKey: (service: KeyService, payload: Record<string, string>) =>
     http
-      .post<{ message: string; verified?: boolean }>(`/config/${service}`, { api_key })
+      .post<{ message: string; verified?: boolean }>(`/config/${service}`, payload)
       .then((r) => r.data),
   testKey: (service: KeyService) =>
     http.post<{ message: string }>(`/config/${service}/test`).then((r) => r.data),
