@@ -97,12 +97,13 @@ def test_adzuna_maps_results_and_skips_unsupported_countries():
         ) as get,
     ):
         out = AdzunaSource().search(
-            SearchQuery(titles=["Data Scientist"], countries=["de", "ie"])
+            SearchQuery(titles=["Data Scientist"], countries=["de", "in", "ie"])
         )
-    assert get.call_count == 1  # "ie" isn't an Adzuna country
+    assert get.call_count == 1  # Adzuna searches India only in this app
+    assert "/in/search/" in get.call_args.args[0]
     assert (
         out[0].company == "Acme"
-        and out[0].salary_currency == "EUR"
+        and out[0].salary_currency == "INR"
         and out[0].description_is_snippet
     )
 
@@ -119,7 +120,7 @@ def test_adzuna_bad_keys_become_a_source_error():
         ),
         pytest.raises(SourceError, match="rejected"),
     ):
-        AdzunaSource().search(SearchQuery(titles=["x"], countries=["de"]))
+        AdzunaSource().search(SearchQuery(titles=["x"], countries=["in"]))
 
 
 def test_apify_maps_linkedin_fields_and_handles_no_credit():
@@ -440,3 +441,91 @@ def test_search_refuses_without_confirmed_resume_or_sources():
         pytest.raises(pipeline.SearchNotReady, match="Adzuna or Apify"),
     ):
         pipeline.start_search()
+
+
+def test_apify_runs_one_search_per_country_with_split_budget():
+    from app.services.jobsearch.sources.apify import _budgets
+
+    budgets = _budgets(["de", "in"], 100)
+    assert budgets == {"de": 67, "in": 33}  # Germany (LinkedIn only) gets two shares
+    item = {"id": "1", "title": "ML Engineer", "companyName": "X", "location": "Berlin"}
+    with (
+        patch(
+            "app.services.jobsearch.sources.apify.get_apify_token", return_value="tok"
+        ),
+        patch(
+            "app.services.jobsearch.sources.apify.requests.post",
+            return_value=_resp(200, [item]),
+        ) as post,
+    ):
+        out = ApifyLinkedInSource().search(
+            SearchQuery(titles=["ML Engineer"], countries=["de", "in"]), max_results=100
+        )
+    assert post.call_count == 2  # one run per country
+    urls = [c.kwargs["json"]["urls"][0] for c in post.call_args_list]
+    assert "location=Germany" in urls[0] and "location=India" in urls[1]
+    assert [c.kwargs["json"]["count"] for c in post.call_args_list] == [67, 33]
+    assert [p.country for p in out] == [
+        "de",
+        "in",
+    ]  # country known from the run, not guessed
+
+
+def test_above_level_jobs_are_capped_and_explained():
+    from app.services.jobsearch import ranking
+
+    profile = SearchProfile(
+        titles=["Data Scientist"], experience_levels=["entry"], years_experience=1.2
+    )
+    staff = {
+        "id": "s",
+        "title": "Staff Data Scientist",
+        "description": "Python",
+        "seniority": None,
+        "country": "de",
+        "company_size": None,
+        "posted_at": None,
+        "remote": None,
+    }
+    junior = {
+        "id": "j",
+        "title": "Junior Data Scientist",
+        "description": "Python",
+        "seniority": "Entry level",
+        "country": "de",
+        "company_size": None,
+        "posted_at": None,
+        "remote": None,
+    }
+    scored = {
+        jid: (score, bd)
+        for jid, score, bd in ranking.score_jobs(
+            [staff, junior], None, profile, 30, 200
+        )
+    }
+    assert scored["s"][0] <= ranking.ABOVE_SCORE_CAP
+    assert scored["s"][1]["above_level"] == "a senior role for your level"
+    assert (
+        scored["j"][1]["above_level"] is None
+        and scored["j"][0] > ranking.ABOVE_SCORE_CAP
+    )
+
+
+def test_years_asked_is_compared_with_the_users_years():
+    from app.services.jobsearch import ranking
+
+    profile = SearchProfile(
+        titles=["Data Scientist"], experience_levels=["entry"], years_experience=1.2
+    )
+    asks5 = {
+        "title": "Machine Learning Engineer",
+        "seniority": None,
+        "description": "5+ years of experience in Python",
+    }
+    asks2 = {
+        "title": "Machine Learning Engineer",
+        "seniority": None,
+        "description": "2+ years of experience",
+    }
+    assert "5+" in (ranking.above_level(asks5, profile) or "")
+    assert ranking.above_level(asks2, profile) is None

@@ -79,6 +79,11 @@ export function JobCard({ job, onStatus, onOutreach, onTailor }: Props) {
             {salary && ` · ${salary}`}
           </p>
           <div className="flex flex-wrap gap-1.5">
+            {job.above_level && (
+              <Badge tone="bad" title={job.above_level_reason ?? undefined}>
+                Above your level
+              </Badge>
+            )}
             {job.company_kind === "startup" && (
               <Badge tone="good" title={job.company_kind_verified ? `${job.company_size} employees` : "Guessed from the description"}>
                 {job.company_kind_verified ? "Startup" : "Likely startup (unverified)"}

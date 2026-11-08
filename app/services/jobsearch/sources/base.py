@@ -18,6 +18,7 @@ class SearchQuery:
     posted_days: int | None = None  # user's recency choice (capped by max_days_old)
     salary_min: float | None = None
     salary_currency: str | None = None
+    exclude_terms: str | None = None  # title words to leave out (above-level roles)
 
 
 @dataclass

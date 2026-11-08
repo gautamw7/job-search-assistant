@@ -48,7 +48,10 @@ def _call_api(texts: list[str], model: str, dims: int) -> list[list[float]]:
     from app.services.generation.llm import _client
 
     usage.check_budget()
-    result = _client().models.embed_content(
+    # Keep a reference for the whole call: a temporary client is closed when it is
+    # garbage-collected, which made embed_content fail mid-request.
+    client = _client()
+    result = client.models.embed_content(
         model=model,
         contents=texts,
         config=types.EmbedContentConfig(output_dimensionality=dims),

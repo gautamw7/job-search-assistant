@@ -106,6 +106,7 @@ export function JobsPage({ jobs: j, onOpenTab, onOutreach }: Props) {
               return ok;
             }}
             onCancel={j.profile.confirmed ? () => setEditing(false) : undefined}
+            onResuggest={() => j.suggest(ambitions)}
           />
         )}
       </div>
@@ -201,6 +202,10 @@ export function JobsPage({ jobs: j, onOpenTab, onOutreach }: Props) {
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
           <input type="checkbox" className="h-3.5 w-3.5 accent-indigo-500" checked={j.filters.hideGerman} onChange={(e) => j.setFilters((f) => ({ ...f, hideGerman: e.target.checked }))} />
           Hide German-required
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
+          <input type="checkbox" className="h-3.5 w-3.5 accent-indigo-500" checked={j.filters.hideAbove} onChange={(e) => j.setFilters((f) => ({ ...f, hideAbove: e.target.checked }))} />
+          Hide jobs above my level
         </label>
         {j.loadingJobs && <Spinner />}
       </div>

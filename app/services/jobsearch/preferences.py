@@ -146,6 +146,8 @@ def adzuna_params(query: SearchQuery, country: str) -> dict:
         and CURRENCY.get(country) == query.salary_currency
     ):
         params["salary_min"] = int(query.salary_min)
+    if query.exclude_terms:
+        params["what_exclude"] = query.exclude_terms
     return params
 
 

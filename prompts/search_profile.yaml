@@ -9,6 +9,17 @@ prompt: |
   cannot tell you something (e.g. relocation, visa, salary), make a sensible default AND ask
   about it in "questions" (at most 3 questions, only the most decision-relevant ones).
 
+  FACTS (computed from the resume; treat them as true):
+  {facts}
+
+  Questions rules:
+  - Never ask anything the RESUME or FACTS already answer (current job, degree, experience).
+  - If the degree is completed, do not ask about graduation or a graduation date.
+  - If the candidate is currently employed, ask about availability as notice period
+    (options: "Immediately", "15 days", "1 month", "2-3 months"), not as a start date.
+  - Ask about things that change the search: visa or work permit, relocation, work style,
+    salary expectations. Give 2-4 short options for each question.
+
   Guidance:
   - titles: 3 to 5 realistic job titles this person can get hired for NOW (not aspirational
     titles they are not yet qualified for). Use common market titles.

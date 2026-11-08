@@ -13,6 +13,7 @@ type Props = {
   meta: JobsMeta;
   onSave: (p: SearchProfile) => Promise<boolean>;
   onCancel?: () => void;
+  onResuggest?: () => void;
 };
 
 const csv = (v: string[]) => v.join(", ");
@@ -25,7 +26,7 @@ const COMPANY_TYPES: { id: CompanyType; label: string }[] = [
 ];
 
 /** The confirmed profile drives every search. Pre-filled by the LLM; the user decides. */
-export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }: Props) {
+export function SearchProfileForm({ initial, questions, meta, onSave, onCancel, onResuggest }: Props) {
   const [p, setP] = useState<SearchProfile>(initial);
   const [titles, setTitles] = useState(csv(initial.titles));
   const [skills, setSkills] = useState(csv(initial.skills));
@@ -35,6 +36,7 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
   const [addCountry, setAddCountry] = useState("");
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [skipped, setSkipped] = useState<string[]>([]);
   const [preview, setPreview] = useState<{ searches: JobSearchPreview[]; notes: string[] } | null>(null);
   const toast = useToast();
 
@@ -73,7 +75,7 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
   const allQuestions = [
     ...questions.map((q) => q.question),
     ...initial.clarifications.map((c) => c.question).filter((q) => !questions.some((x) => x.question === q)),
-  ];
+  ].filter((q) => !skipped.includes(q));
 
   const moveCountry = (i: number, d: -1 | 1) => {
     const next = [...p.countries];
@@ -111,6 +113,11 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
           </h3>
           <p className="mt-1 text-xs text-slate-400">Suggested from your resume. Check it, answer the questions, then save. Every search uses this.</p>
         </div>
+        {onResuggest && (
+          <button type="button" className="btn btn-secondary" onClick={onResuggest}>
+            <Wand2 className="h-4 w-4" aria-hidden /> Re-suggest
+          </button>
+        )}
         {onCancel && (
           <button type="button" className="btn btn-ghost" onClick={onCancel}>
             <X className="h-4 w-4" aria-hidden /> Cancel
@@ -127,7 +134,17 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
             const options = questions.find((x) => x.question === q)?.options ?? [];
             return (
               <div key={q} className="space-y-1.5">
-                <p className="text-xs text-slate-200">{q}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs text-slate-200">{q}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSkipped((s) => [...s, q])}
+                    className="btn btn-ghost !px-1.5 !py-0.5 text-[11px]"
+                    aria-label={`Skip: ${q}`}
+                  >
+                    Skip
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {options.map((o) => (
                     <button
@@ -231,6 +248,19 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
         </div>
       </fieldset>
 
+      <label className="block space-y-1">
+        <span className={label}>Years of professional experience (from your resume; change it if it's wrong)</span>
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          className="input !w-40"
+          value={p.years_experience ?? ""}
+          onChange={(e) => set("years_experience", e.target.value === "" ? null : Number(e.target.value))}
+          aria-label="Years of experience"
+        />
+      </label>
+
       <fieldset className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
         <legend className="px-1 text-xs font-semibold text-slate-200">Job preferences</legend>
         <p className="text-[11px] text-slate-500">
@@ -297,6 +327,7 @@ export function SearchProfileForm({ initial, questions, meta, onSave, onCancel }
           ["needs_sponsorship", "I need visa sponsorship"],
           ["willing_to_relocate", "I'm willing to relocate"],
           ["hide_german_required", "Hide jobs that require German"],
+          ["hide_above_level", "Hide jobs above my level"],
         ].map(([key, text]) => (
           <label key={key} className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
             <input type="checkbox" className="h-3.5 w-3.5 accent-indigo-500" checked={Boolean(p[key as keyof SearchProfile])} onChange={(e) => set(key as "needs_sponsorship", e.target.checked)} />

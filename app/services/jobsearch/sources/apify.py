@@ -12,7 +12,7 @@ import requests
 from app.core.logging import get_logger
 from app.services import usage
 from app.services.jobsearch.preferences import linkedin_params
-from app.services.jobsearch.profile import COUNTRY_NAMES
+from app.services.jobsearch.profile import ADZUNA_COUNTRIES, COUNTRY_NAMES
 from app.services.jobsearch.sources.base import (
     JobPosting,
     JobSource,
@@ -26,6 +26,13 @@ logger = get_logger(__name__)
 DEFAULT_ACTOR = "curious_coder~linkedin-jobs-scraper"
 RUN_URL = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
 SYNC_TIMEOUT_S = 280  # the sync endpoint gives up at 300 s
+
+
+def _budgets(countries: list[str], total: int) -> dict[str, int]:
+    """Split the result cap across countries. Countries Adzuna can't cover get 2 shares."""
+    weight = {c: (1 if c in ADZUNA_COUNTRIES else 2) for c in countries}
+    total_weight = sum(weight.values()) or 1
+    return {c: max(1, round(total * w / total_weight)) for c, w in weight.items()}
 
 
 def _first(item: dict, *keys, default=None):
@@ -107,24 +114,39 @@ class ApifyLinkedInSource(JobSource):
         if max_results <= 0 or not query.countries:
             return []
         usage.check_budget(apify_results=max_results)
-        per_country = max(1, max_results // len(query.countries))
-        urls = [
-            search_url(query.titles, c, linkedin_params(query)) for c in query.countries
-        ]
+        budgets = _budgets(query.countries, max_results)
+        postings: list[JobPosting] = []
+        for country in query.countries:
+            # One run per country so every result's country is known, not guessed.
+            items = self._run(
+                token,
+                search_url(query.titles, country, linkedin_params(query)),
+                budgets[country],
+            )
+            usage.record_apify(len(items))
+            postings += [
+                p
+                for p in (_to_posting(i, country) for i in items[: budgets[country]])
+                if p.title
+            ]
+        logger.info(
+            "apify returned %s postings for %s countries",
+            len(postings),
+            len(query.countries),
+        )
+        return postings
+
+    def _run(self, token: str, url: str, count: int) -> list[dict]:
         payload = {
-            "urls": urls,
+            "urls": [url],
             "scrapeCompany": True,
-            "count": per_country,
-            "limitPerSource": per_country,
+            "count": count,
+            "limitPerSource": count,
         }
         try:
             resp = requests.post(
                 RUN_URL.format(actor=self.actor),
-                params={
-                    "timeout": SYNC_TIMEOUT_S,
-                    "limit": max_results,
-                    "format": "json",
-                },
+                params={"timeout": SYNC_TIMEOUT_S, "limit": count, "format": "json"},
                 headers={"Authorization": f"Bearer {token}"},
                 json=payload,
                 timeout=SYNC_TIMEOUT_S + 20,
@@ -150,23 +172,4 @@ class ApifyLinkedInSource(JobSource):
                 f"Apify run failed ({resp.status_code}): {resp.text[:200]}"
             )
         items = resp.json()
-        items = items if isinstance(items, list) else []
-        usage.record_apify(len(items))
-        # The actor doesn't echo which search URL an item came from; infer country from
-        # its location text, falling back to the first target country.
-        postings = []
-        for item in items[:max_results]:
-            location = str(_first(item, "location", default="")).lower()
-            country = next(
-                (
-                    c
-                    for c in query.countries
-                    if COUNTRY_NAMES.get(c, "").lower() in location
-                ),
-                query.countries[0],
-            )
-            posting = _to_posting(item, country)
-            if posting.title:
-                postings.append(posting)
-        logger.info("apify returned %s postings", len(postings))
-        return postings
+        return items if isinstance(items, list) else []

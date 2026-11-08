@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 from app.core.settings import PROMPTS_DIR
 from app.infra.config import load_config
 from app.infra.db import connect
+from app.services.jobsearch.facts import resume_facts
 from app.services.structured_resume import StructuredResume
 
 logger = get_logger(__name__)
@@ -19,26 +20,8 @@ logger = get_logger(__name__)
 # Adzuna's supported countries (developer.adzuna.com). Other countries can still be
 # searched via Apify/LinkedIn.
 ADZUNA_COUNTRIES = {
-    "at",
-    "au",
-    "be",
-    "br",
-    "ca",
-    "ch",
-    "de",
-    "es",
-    "fr",
-    "gb",
-    "in",
-    "it",
-    "mx",
-    "nl",
-    "nz",
-    "pl",
-    "sg",
-    "us",
-    "za",
-}
+    "in"
+}  # Adzuna searches India only in this app; other countries use LinkedIn
 COUNTRY_NAMES = {
     "at": "Austria",
     "au": "Australia",
@@ -110,6 +93,10 @@ class SearchProfile(BaseModel):
         Literal["internship", "entry", "associate", "mid_senior", "director"]
     ] = Field(default_factory=list)
     posted_within_days: Literal[7, 14, 30] = 30
+    # Years of experience; None = computed from the resume (facts.resume_facts).
+    years_experience: float | None = None
+    # Hide jobs asking for clearly more experience or seniority than the user has.
+    hide_above_level: bool = True
 
     @field_validator("titles", "skills", mode="before")
     @classmethod
@@ -192,12 +179,20 @@ def suggest(
         if ambitions.strip()
         else ""
     )
+    facts = resume_facts(resume)
     raw = generate_with_fallback(
-        template.format(resume=resume.to_text(), ambitions=ambitions_text),
+        template.format(
+            resume=resume.to_text(),
+            ambitions=ambitions_text,
+            facts=facts.as_prompt_text(),
+        ),
         json_mode=True,
         purpose="search_profile",
     )
     data = _parse_json(raw)
+    data["years_experience"] = (
+        facts.years_experience
+    )  # shown in the form; user can change it
     questions = [
         ProfileQuestion.model_validate(q) for q in (data.pop("questions", None) or [])
     ][:3]
